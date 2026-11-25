@@ -74,6 +74,7 @@ See docs/FIREBASE_SETUP.md and firestore.rules.
 - docs/FIREBASE_SETUP.md
 - docs/DEMO_SCRIPT.md
 - docs/TEST_PLAN.md
+- docs/TESTING.md
 
 ## Production readiness
 
