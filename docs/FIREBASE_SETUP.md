@@ -58,3 +58,5 @@ The app only connects to emulators when both Vite development mode and `VITE_USE
 - Verify App Check in production and local debug mode separately.
 - Configure backups, retention, monitoring, billing alerts, and incident response.
 - Never use simulated telemetry or AI output to make safety-critical electrical decisions.
+
+For the complete automated test matrix and opt-in live Firebase AI Logic smoke test, see [docs/TESTING.md](./TESTING.md).
