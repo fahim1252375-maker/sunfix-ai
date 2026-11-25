@@ -1,0 +1,196 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated technician or operator profile with isolated PII.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "role": { "type": "string", "enum": ["technician", "engineer", "supervisor"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "createdAt", "updatedAt"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "Solar photovoltaic installation asset registered to a user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "siteType": { "type": "string", "enum": ["residential", "commercial", "microgrid"] },
+        "locationLabel": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "capacityKw": { "type": "number" },
+        "status": { "type": "string", "enum": ["nominal", "warning", "fault", "offline"] },
+        "inverterModel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "inverterSerial": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "batteryModel": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "batteryCapacityKwh": { "type": "number" },
+        "panelCount": { "type": "number" },
+        "isDemo": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "name", "siteType", "locationLabel", "capacityKw", "status", "inverterModel", "inverterSerial", "panelCount", "isDemo", "createdAt", "updatedAt"]
+    },
+    "DiagnosticCase": {
+      "title": "DiagnosticCase",
+      "description": "Evidence-first diagnostic record linked to an installation asset.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "componentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "componentType": { "type": "string", "enum": ["solar_panel", "inverter", "battery", "connection", "grid_meter", "other"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "faultCode": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "readingsSummary": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "safetyHazardDetected": { "type": "boolean" },
+        "stopWork": { "type": "boolean" },
+        "priority": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "status": { "type": "string", "enum": ["open", "investigating", "safety_blocked", "resolved"] },
+        "inferenceSource": { "type": "string", "enum": ["on_device", "in_cloud", "demo_rules", "unavailable"] },
+        "assessmentSummary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "reviewStatus": { "type": "string", "enum": ["draft", "pending_review", "approved", "changes_requested"] },
+        "reviewNote": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "assetId", "componentId", "componentType", "title", "safetyHazardDetected", "stopWork", "priority", "status", "inferenceSource", "assessmentSummary", "createdAt", "updatedAt"]
+    },
+    "WorkOrder": {
+      "title": "WorkOrder",
+      "description": "Safety-gated repair workflow derived from a diagnostic case.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caseId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "componentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "status": { "type": "string", "enum": ["not_started", "in_progress", "completed", "blocked", "escalated"] },
+        "priority": { "type": "string", "enum": ["critical", "high", "medium", "low"] },
+        "safetyCleared": { "type": "boolean" },
+        "technicianNotes": { "type": "string", "minLength": 0, "maxLength": 2000 },
+        "completedSteps": { "type": "number" },
+        "totalSteps": { "type": "number" },
+        "reviewStatus": { "type": "string", "enum": ["draft", "pending_review", "approved", "changes_requested"] },
+        "reviewNote": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "caseId", "assetId", "componentId", "title", "status", "priority", "safetyCleared", "completedSteps", "totalSteps", "createdAt", "updatedAt"]
+    },
+    "EvidenceRecord": {
+      "title": "EvidenceRecord",
+      "description": "FieldProof evidence record linked to a diagnostic case and work order.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caseId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "componentId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "evidenceType": { "type": "string", "enum": ["before_photo", "after_photo", "condition_photo", "observed_reading", "inspection_note", "repair_note", "completion_evidence"] },
+        "originKind": { "type": "string", "enum": ["original_evidence", "simulated_demo_evidence", "ai_explanatory_text"] },
+        "caption": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "note": { "type": "string", "minLength": 0, "maxLength": 1200 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "caseId", "assetId", "componentId", "evidenceType", "originKind", "caption", "createdAt"]
+    },
+    "ServiceReport": {
+      "title": "ServiceReport",
+      "description": "Generated FieldProof service report metadata.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "caseId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "assetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "reportCode": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "status": { "type": "string", "enum": ["completed", "escalated", "pending_verification"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "isSimulated": { "type": "boolean" },
+        "canonicalHash": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "caseId", "assetId", "reportCode", "title", "status", "summary", "isSimulated", "createdAt"]
+    },
+    "KnowledgeSource": {
+      "title": "KnowledgeSource",
+      "description": "User-imported or verified solar maintenance documentation reference.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "publisher": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "category": { "type": "string", "enum": ["inverter", "solar_panel", "battery", "grid_connection", "safety"] },
+        "faultCode": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "sourceUrl": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "verifiedDate": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "title", "publisher", "category", "summary", "verifiedDate", "createdAt"]
+    },
+    "CopilotThread": {
+      "title": "CopilotThread",
+      "description": "SunFix Copilot diagnostic conversation metadata persisted per owner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "language": { "type": "string", "enum": ["en", "bn"] },
+        "messageCount": { "type": "number" },
+        "lastMessagePreview": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "title", "language", "messageCount", "lastMessagePreview", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-isolated user profile documents containing technician email and display name."
+    },
+    "/assets/{assetId}": {
+      "schema": { "$ref": "#/entities/Asset" },
+      "description": "Solar photovoltaic assets owned by the authenticated technician."
+    },
+    "/diagnosticCases/{caseId}": {
+      "schema": { "$ref": "#/entities/DiagnosticCase" },
+      "description": "Diagnostic cases owned by the authenticated technician."
+    },
+    "/workOrders/{workOrderId}": {
+      "schema": { "$ref": "#/entities/WorkOrder" },
+      "description": "Repair work orders linked to diagnostic cases."
+    },
+    "/evidenceRecords/{evidenceId}": {
+      "schema": { "$ref": "#/entities/EvidenceRecord" },
+      "description": "FieldProof evidence records linked to cases and assets."
+    },
+    "/serviceReports/{reportId}": {
+      "schema": { "$ref": "#/entities/ServiceReport" },
+      "description": "Generated service reports linked to diagnostic cases."
+    },
+    "/knowledgeDocs/{docId}": {
+      "schema": { "$ref": "#/entities/KnowledgeSource" },
+      "description": "User-imported technical manual references."
+    },
+    "/copilotThreads/{threadId}": {
+      "schema": { "$ref": "#/entities/CopilotThread" },
+      "description": "Owner-scoped SunFix Copilot conversation threads."
+    }
+  }
+}

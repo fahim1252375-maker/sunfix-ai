@@ -1,0 +1,45 @@
+name: Quality checks
+
+on:
+  push:
+    branches:
+      - main
+      - audit/sunfix-source-review
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: bun install
+      - name: TypeScript check
+        run: bun run lint
+      - name: ESLint
+        run: bun run lint:eslint
+      - name: Unit and static security tests
+        run: bun run test
+      - name: Production build
+        run: bun run build
