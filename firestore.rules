@@ -102,6 +102,7 @@ service cloud.firestore {
         && (!('readingsSummary' in data) || (data.readingsSummary is string && data.readingsSummary.size() <= 500))
         && data.safetyHazardDetected is bool
         && data.stopWork is bool
+        && (!data.stopWork || data.status == 'safety_blocked')
         && data.priority in ['critical', 'high', 'medium', 'low']
         && data.status in ['open', 'investigating', 'safety_blocked', 'resolved']
         && data.inferenceSource in ['on_device', 'in_cloud', 'demo_rules', 'unavailable']
@@ -138,6 +139,12 @@ service cloud.firestore {
         && (!('technicianNotes' in data) || (data.technicianNotes is string && data.technicianNotes.size() <= 2000))
         && data.completedSteps is number && data.completedSteps >= 0 && data.completedSteps <= 100
         && data.totalSteps is number && data.totalSteps >= 1 && data.totalSteps <= 100
+        // A cleared work order must link to an owned case whose Stop-Work hold is false.
+        && (!data.safetyCleared || (
+          exists(/databases/$(database)/documents/diagnosticCases/$(data.caseId))
+          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.stopWork == false
+        ))
         // A client cannot mark a work order completed unless safety is cleared and every step is complete.
         && (data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps))
         && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
