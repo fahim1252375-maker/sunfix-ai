@@ -1,14 +1,12 @@
-SunFix Field source archive review
-Archive: sunfix-field-5.zip
-Extracted files: 73
+SunFix Field archive import review
+Extracted source files: 73
 Excluded files: 31
-Secret-pattern files excluded: 0
+Potential secret-pattern matches excluded: 0
 Project manifests: bun.lock, package.json
-Top-level entries: .env.example, .gitignore, AGENTS.md, CHANGELOG.md, LICENSE, README.md, bun.lock, docs, eslint.config.mjs, firebase-blueprint.json, firestore.rules, firestore.rules.test.ts, index.html, metadata.json, package.json, public, security_spec.md, src, tsconfig.json, vite.config.ts
 
-Excluded entries (paths and categories only; file contents are never printed):
-- firebase-applet-config.json [sensitive-or-runtime-data]
-- public/assets/aistudio/Paste_November_25__2026_-_6_18PM_6e30a531 [private-build-prompt-or-ai-studio-artifact]
+Excluded paths (values are never printed):
+- firebase-applet-config.json [secret-or-runtime-data]
+- public/assets/aistudio/Paste_November_25__2026_-_6_18PM_6e30a531 [ai-studio-prompt-artifact]
 - .aistudio/artifacts/brain/dcfb1e98-5786-4f95-9e81-c11da4cfcc33/.tempmediaStorage/media_1795610260365_584ecbbb.png [generated-or-dependency]
 - .aistudio/artifacts/brain/dcfb1e98-5786-4f95-9e81-c11da4cfcc33/.tempmediaStorage/media_1795610262060_cfc5bb16.png [generated-or-dependency]
 - .aistudio/artifacts/brain/dcfb1e98-5786-4f95-9e81-c11da4cfcc33/.tempmediaStorage/media_1795610263209_6f4f99d2.png [generated-or-dependency]
@@ -37,4 +35,4 @@ Excluded entries (paths and categories only; file contents are never printed):
 - dev-dist/sw.js [generated-or-dependency]
 - dev-dist/workbox-afac4cd2.js [generated-or-dependency]
 - dev-dist/registerSW.js [generated-or-dependency]
-- public/assets/aistudio/Paste_November_25__2026_-_8_20PM_4a473666 [private-build-prompt-or-ai-studio-artifact]
+- public/assets/aistudio/Paste_November_25__2026_-_8_20PM_4a473666 [ai-studio-prompt-artifact]
