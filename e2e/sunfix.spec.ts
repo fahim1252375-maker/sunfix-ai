@@ -43,6 +43,61 @@ test('demo workspace navigation and simulated offline mode remain usable', async
 
   const onlineState = await page.evaluate(() => navigator.onLine);
   expect(onlineState).toBe(true);
+
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const request = indexedDB.open('sunfix-field-db');
+        request.onerror = () => resolve(false);
+        request.onsuccess = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains('workspace_state')) {
+            database.close();
+            resolve(false);
+            return;
+          }
+          const transaction = database.transaction('workspace_state', 'readonly');
+          const lookup = transaction.objectStore('workspace_state').get('workspace:anonymous');
+          lookup.onsuccess = () => {
+            const data = lookup.result?.data;
+            database.close();
+            resolve(Boolean(data && Array.isArray(data.assets) && data.assets.length > 0));
+          };
+          lookup.onerror = () => {
+            database.close();
+            resolve(false);
+          };
+        };
+      }),
+    null,
+    { timeout: 15_000 },
+  );
+
+  await page.context().setOffline(true);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+  const workspaceSurvivesOffline = await page.evaluate(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const request = indexedDB.open('sunfix-field-db');
+        request.onerror = () => resolve(false);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction('workspace_state', 'readonly');
+          const lookup = transaction.objectStore('workspace_state').get('workspace:anonymous');
+          lookup.onsuccess = () => {
+            const data = lookup.result?.data;
+            database.close();
+            resolve(Boolean(data && Array.isArray(data.assets) && data.assets.length > 0));
+          };
+          lookup.onerror = () => {
+            database.close();
+            resolve(false);
+          };
+        };
+      }),
+  );
+  expect(workspaceSurvivesOffline).toBe(true);
+  await page.context().setOffline(false);
 });
 
 test('mobile navigation opens, changes route and closes', async ({ page }) => {
