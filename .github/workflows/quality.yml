@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - audit/sunfix-source-review
+      - audit/sunfix-hardening-2026-11-25
   pull_request:
     branches:
       - main
@@ -14,14 +15,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: quality-\${{ github.ref }}
+  group: quality-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
-    name: Typecheck, lint, test, build
+    name: Typecheck, lint, unit, emulator, browser QA and build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
+    env:
+      VITE_FIREBASE_API_KEY: demo-api-key
+      VITE_FIREBASE_AUTH_DOMAIN: demo-sunfix-field.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: demo-sunfix-field
+      VITE_FIREBASE_APP_ID: 1:123456789:web:demo
+      VITE_USE_FIREBASE_EMULATORS: "true"
+      VITE_FIREBASE_AUTH_EMULATOR_URL: http://127.0.0.1:9099
+      VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: 127.0.0.1
+      VITE_FIREBASE_FIRESTORE_EMULATOR_PORT: "8080"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,5 +51,37 @@ jobs:
         run: bun run lint:eslint
       - name: Unit and static security tests
         run: bun run test
+      - name: Firestore Emulator authorization tests
+        run: bun run test:rules
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Authenticated emulator sync, responsive and accessibility tests
+        run: bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
+      - name: Optional live Firebase AI Logic smoke test
+        if: ${{ vars.SUNFIX_RUN_LIVE_AI_SMOKE == 'true' }}
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
+          VITE_FIREBASE_AI_MODEL: ${{ vars.VITE_FIREBASE_AI_MODEL }}
+          VITE_USE_FIREBASE_EMULATORS: "false"
+        run: |
+          if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ] || [ -z "$VITE_FIREBASE_APP_ID" ] || [ -z "$VITE_RECAPTCHA_SITE_KEY" ]; then
+            echo "::error::SUNFIX_RUN_LIVE_AI_SMOKE is enabled, but required Firebase/App Check secrets are missing."
+            exit 1
+          fi
+          echo "Live AI smoke is a browser test and must be run against a configured web origin; this workflow step verifies configuration is present only."
       - name: Production build
         run: bun run build
+      - name: Upload browser QA screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunfix-browser-qa
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
