@@ -47,7 +47,7 @@ Run the same checks used by CI:
 
 - bun run lint
 - bun run lint:eslint
-- bun test
+- bun run test
 - bun run build
 
 Or run bun run check.
