@@ -31,8 +31,8 @@ The app uses owner-scoped documents. A client-side role or hidden UI control is 
 
 1. Register the Web App in Firebase App Check using reCAPTCHA Enterprise.
 2. Add the site key to VITE_RECAPTCHA_SITE_KEY.
-3. For local development only, set VITE_FIREBASE_APPCHECK_DEBUG_TOKEN and register the debug token in Firebase Console.
-4. Enable enforcement only after verifying valid tokens for production clients.
+3. For local development only, set VITE_FIREBASE_APPCHECK_DEBUG_TOKEN in .env.local and register the debug token in Firebase Console. The application ignores this variable in production builds.
+4. Keep debug tokens out of source control and rotate any token that has been committed or shared. Enable enforcement only after verifying valid tokens for production clients.
 
 ## 5. AI configuration
 
