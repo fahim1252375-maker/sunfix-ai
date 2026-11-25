@@ -44,9 +44,8 @@ test('firestore.rules forbids unauthenticated writes and role escalation on user
 
 test('firestore.rules blocks incomplete or uncleared work-order completion', () => {
   const rules = fs.readFileSync(RULES_PATH, 'utf8');
-  assert.match(
-    rules,
-    /data\\.status\\s*!=\\s*'completed'\\s*\\|\\|\\s*\\(data\\.safetyCleared\\s*==\\s*true\\s*&&\\s*data\\.completedSteps\\s*==\\s*data\\.totalSteps\\)/,
+  assert.ok(
+    rules.includes("data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps)"),
     'Completed work orders must be safety-cleared and have every checklist step completed',
   );
 });
