@@ -76,7 +76,21 @@ let appCheckStatus: AppCheckStatusInfo = {
 function initAppCheckBeforeServices(): void {
   if (typeof window === 'undefined') return;
 
-  const debugEnv = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN as string | undefined;
+  if (!firebaseConfigReady) {
+    appCheckStatus = {
+      state: 'unconfigured_missing_site_key',
+      detail: 'Firebase project configuration is incomplete. App Check will not initialize until the Firebase Web App settings are configured.',
+      debugModeEnabled: false,
+      siteKeyConfigured: false,
+    };
+    return;
+  }
+
+  // App Check debug tokens are accepted only in development builds. Vite replaces
+  // import.meta.env.DEV at build time, so a production bundle cannot activate this bypass.
+  const debugEnv = import.meta.env.DEV
+    ? (import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN as string | undefined)
+    : undefined;
   const siteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined)?.trim() || '';
 
   const debugModeEnabled = Boolean(debugEnv && debugEnv.trim().length > 0);
@@ -110,9 +124,15 @@ function initAppCheckBeforeServices(): void {
       siteKeyConfigured: true,
     };
   } catch (err) {
+    const errorCode =
+      err && typeof err === 'object' && 'code' in err && typeof err.code === 'string'
+        ? err.code.slice(0, 80)
+        : null;
     appCheckStatus = {
       state: 'error',
-      detail: err instanceof Error ? err.message : 'Failed to initialize Firebase App Check.',
+      detail: errorCode
+        ? `Firebase App Check initialization failed (${errorCode}).`
+        : 'Firebase App Check initialization failed. Check the Firebase project and site-key configuration.',
       debugModeEnabled,
       siteKeyConfigured: true,
     };
@@ -165,7 +185,8 @@ export async function testFirestoreConnection(): Promise<{ ok: boolean; detail: 
     if (message.includes('permission') || message.includes('insufficient')) {
       return { ok: true, detail: 'Firestore endpoint reachable and security rules enforced.' };
     }
-    return { ok: false, detail: message };
+    const errorCode = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code.slice(0, 80) : null;
+    return { ok: false, detail: errorCode ? `Firestore connection failed (${errorCode}). Check network and project configuration.` : 'Firestore connection failed. Check network and project configuration.' };
   }
 }
 
