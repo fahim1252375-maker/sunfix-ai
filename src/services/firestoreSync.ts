@@ -281,11 +281,19 @@ export async function syncQueueItemToFirestore(
 
     return { status: 'synced' };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.toLowerCase().includes('permission')) {
+    const errorCode =
+      err && typeof err === 'object' && 'code' in err && typeof err.code === 'string'
+        ? err.code.slice(0, 80)
+        : null;
+    if (errorCode?.toLowerCase().includes('permission')) {
       handleFirestoreError(err, OperationType.WRITE, `${item.entityType}/${docId}`);
     }
-    return { status: 'failed', error: msg };
+    return {
+      status: 'failed',
+      error: errorCode
+        ? `Cloud sync failed (${errorCode}). Check your connection and access permissions.`
+        : 'Cloud sync failed. Check your connection and Firebase configuration.',
+    };
   }
 }
 
