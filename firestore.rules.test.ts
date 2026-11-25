@@ -61,3 +61,21 @@ test('firestore.rules blocks incomplete or uncleared work-order completion', () 
     'Completed work orders must be safety-cleared and have every checklist step completed',
   );
 });
+
+test('Firestore allows verified users to probe missing IDs but never read another owner\'s existing documents', () => {
+  const rules = fs.readFileSync(RULES_PATH, 'utf8');
+  for (const [collection, id] of [
+    ['assets', 'assetId'],
+    ['diagnosticCases', 'caseId'],
+    ['workOrders', 'workOrderId'],
+    ['evidenceRecords', 'evidenceId'],
+    ['serviceReports', 'reportId'],
+    ['knowledgeDocs', 'docId'],
+    ['copilotThreads', 'threadId'],
+  ]) {
+    assert.ok(
+      rules.includes(`!exists(/databases/$(database)/documents/${collection}/$(${id}))`),
+      `Missing-document existence checks must be allowed for ${collection}`,
+    );
+  }
+});
