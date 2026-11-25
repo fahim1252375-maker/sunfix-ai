@@ -34,12 +34,12 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install
       - name: TypeScript check
         run: bun run lint
       - name: ESLint
         run: bun run lint:eslint
       - name: Unit and static security tests
-        run: bun test
+        run: bun run test
       - name: Production build
         run: bun run build
