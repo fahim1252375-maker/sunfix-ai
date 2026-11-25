@@ -7,6 +7,7 @@ import {
 import {
   getAuth,
   GoogleAuthProvider,
+  connectAuthEmulator,
   signInWithPopup,
   signOut,
   type Auth,
@@ -16,6 +17,7 @@ import {
   doc,
   getDocFromServer,
   getFirestore,
+  connectFirestoreEmulator,
   type Firestore,
 } from 'firebase/firestore';
 const firebaseConfig = {
@@ -145,6 +147,27 @@ initAppCheckBeforeServices();
 export const db: Firestore = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 export const auth: Auth = getAuth(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();
+
+// Emulator wiring is available only in the Vite development server. Production
+// bundles can never redirect Authentication or Firestore to local emulators.
+if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
+  const authEmulatorUrl =
+    (import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL as string | undefined)?.trim() ||
+    'http://127.0.0.1:9099';
+  const firestoreHost =
+    (import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_HOST as string | undefined)?.trim() ||
+    '127.0.0.1';
+  const firestorePort = Number(
+    (import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT as string | undefined)?.trim() || '8080',
+  );
+
+  if (!Number.isInteger(firestorePort) || firestorePort < 1 || firestorePort > 65535) {
+    throw new Error('Invalid Firestore emulator port configuration.');
+  }
+
+  connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+  connectFirestoreEmulator(db, firestoreHost, firestorePort);
+}
 
 export function getAppCheckStatus(): AppCheckStatusInfo {
   return appCheckStatus;
