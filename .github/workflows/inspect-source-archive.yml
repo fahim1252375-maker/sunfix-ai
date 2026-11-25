@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: sunfix-source-archive-review
@@ -18,9 +18,9 @@ concurrency:
 
 jobs:
   inspect-archive:
-    name: Safe archive inspection
+    name: Safe archive inspection and source import
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,7 +33,6 @@ jobs:
           from zipfile import ZipFile
           import re
           import shutil
-          import sys
 
           archive = Path("sunfix-field-5.zip")
           output = Path("safe-source")
@@ -44,13 +43,13 @@ jobs:
           output.mkdir()
 
           ignored_parts = {
-              ".git", "node_modules", "dist", "build", ".next", ".nuxt",
-              ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache",
-              ".turbo", "coverage"
+              ".git", ".aistudio", ".firebase", "node_modules", "dist", "dev-dist",
+              "build", ".next", ".nuxt", ".venv", "venv", "__pycache__",
+              ".pytest_cache", ".mypy_cache", ".turbo", "coverage"
           }
           sensitive_names = {
               ".env", "credentials.json", "service-account.json",
-              "id_rsa", "id_ed25519"
+              "id_rsa", "id_ed25519", "firebase-applet-config.json"
           }
           safe_env_names = {".env.example", ".env.sample", ".env.template"}
           sensitive_suffixes = {
@@ -84,15 +83,19 @@ jobs:
                   if (info.external_attr >> 16) & 0o170000 == 0o120000:
                       excluded.append((raw, "symlink"))
                       continue
+
                   lower_parts = [p.lower() for p in parts]
-                  name = parts[-1]
-                  lower_name = name.lower()
+                  lower_path = "/".join(lower_parts)
+                  lower_name = parts[-1].lower()
                   suffix = Path(lower_name).suffix
 
+                  if lower_path.startswith("public/assets/aistudio/"):
+                      excluded.append((raw, "private-build-prompt-or-ai-studio-artifact"))
+                      continue
                   if any(p in ignored_parts for p in lower_parts):
                       excluded.append((raw, "generated-or-dependency"))
                       continue
-                  if (lower_name.startswith(".env") and lower_name not in safe_env_names):
+                  if lower_name.startswith(".env") and lower_name not in safe_env_names:
                       excluded.append((raw, "environment-secret-file"))
                       continue
                   if lower_name in sensitive_names or suffix in sensitive_suffixes:
@@ -117,39 +120,36 @@ jobs:
                   destination.write_bytes(data)
                   extracted.append(raw)
 
-          manifests = [
+          manifests = {
               "package.json", "pnpm-lock.yaml", "package-lock.json",
               "yarn.lock", "bun.lock", "pyproject.toml", "requirements.txt",
               "Pipfile", "go.mod", "Cargo.toml", "composer.json"
-          ]
-          found_manifests = sorted(
-              p for p in extracted
-              if Path(p).name in manifests
-          )
+          }
+          found_manifests = sorted(p for p in extracted if Path(p).name in manifests)
           roots = sorted({p.split("/", 1)[0] for p in extracted})
           (output / "ARCHIVE_REVIEW_MANIFEST.txt").write_text(
-              "SunFix AI source archive review\n"
+              "SunFix Field source archive review\n"
               f"Archive: {archive.name}\n"
               f"Extracted files: {len(extracted)}\n"
               f"Excluded files: {len(excluded)}\n"
               f"Secret-pattern files excluded: {len(flagged)}\n"
               f"Project manifests: {', '.join(found_manifests) or 'none detected'}\n"
               f"Top-level entries: {', '.join(roots) or 'none'}\n\n"
-              "Excluded entries (path and category only; file contents are never printed):\n"
+              "Excluded entries (paths and categories only; file contents are never printed):\n"
               + "".join(f"- {p} [{reason}]\n" for p, reason in excluded),
               encoding="utf-8"
           )
 
-          print(f"Archive inspection completed: {len(extracted)} files extracted.")
-          print(f"Excluded: {len(excluded)}; secret-pattern files excluded: {len(flagged)}.")
+          print(f"Archive inspection completed: {len(extracted)} source files extracted.")
+          print(f"Excluded: {len(excluded)}; potential-secret files excluded: {len(flagged)}.")
           print("Detected project manifests: " + (", ".join(found_manifests) or "none"))
           print("Top-level entries: " + (", ".join(roots) or "none"))
           if flagged:
-              print("Potential credential material was excluded from the artifact. Review the archive locally and rotate any exposed live credentials.")
+              print("Potential credential material was excluded. Review and restrict/rotate any exposed live credentials.")
           if not extracted:
               raise SystemExit("No safe source files were available to inspect.")
           if not found_manifests:
-              print("Warning: no standard project manifest was detected; CI checks cannot be selected safely yet.")
+              print("Warning: no standard project manifest was detected.")
           PY
 
       - name: Upload reviewed source snapshot
@@ -160,3 +160,19 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
+      - name: Import sanitized source into this review branch
+        shell: bash
+        run: |
+          mkdir -p docs/archive
+          rsync -a --exclude='ARCHIVE_REVIEW_MANIFEST.txt' safe-source/ ./
+          cp safe-source/ARCHIVE_REVIEW_MANIFEST.txt docs/archive/ARCHIVE_REVIEW_MANIFEST.txt
+          rm -rf safe-source
+          git add -A
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: import sanitized SunFix Field source"
+            git push
+          else
+            echo "No source changes to import."
+          fi
