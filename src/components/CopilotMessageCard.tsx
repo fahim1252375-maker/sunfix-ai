@@ -372,7 +372,7 @@ export const CopilotMessageCard: React.FC<CopilotMessageCardProps> = ({
           <button
             type="button"
             onClick={() => {
-              onRateFeedback(message.id, { rating: 'not_helpful', reason: reasonDraft });
+              onRateFeedback(message.id, { rating: 'not_helpful', reason: reasonDraft, timestamp: new Date().toISOString() });
               setShowReasonInput(false);
             }}
             className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
