@@ -18,7 +18,23 @@ import {
   getFirestore,
   type Firestore,
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+const firebaseConfig = {
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim() || '',
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined)?.trim() || '',
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined)?.trim() || '',
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined)?.trim() || '',
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined)?.trim() || '',
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string | undefined)?.trim() || '',
+  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined)?.trim() || '',
+  firestoreDatabaseId: (import.meta.env.VITE_FIRESTORE_DATABASE_ID as string | undefined)?.trim() || '(default)',
+};
+
+const firebaseConfigReady = Boolean(
+  firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId,
+);
 import type { AppCheckState } from '../types/sunfix';
 
 export enum OperationType {
@@ -31,20 +47,10 @@ export enum OperationType {
 }
 
 export interface FirestoreErrorInfo {
-  error: string;
+  errorCode: string | null;
   operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  };
+  collection: string | null;
+  authenticated: boolean;
 }
 
 export interface AppCheckStatusInfo {
@@ -62,7 +68,7 @@ let appCheckInstance: AppCheck | null = null;
 let appCheckStatus: AppCheckStatusInfo = {
   state: 'unconfigured_missing_site_key',
   detail:
-    'reCAPTCHA Enterprise site key is not configured in firebase-applet-config.json or VITE_RECAPTCHA_SITE_KEY.',
+    'reCAPTCHA Enterprise site key is not configured. Set VITE_RECAPTCHA_SITE_KEY in your local environment.',
   debugModeEnabled: false,
   siteKeyConfigured: false,
 };
@@ -71,9 +77,7 @@ function initAppCheckBeforeServices(): void {
   if (typeof window === 'undefined') return;
 
   const debugEnv = import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN as string | undefined;
-  const siteKey =
-    (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined)?.trim() ||
-    (firebaseConfig.recaptchaSiteKey || '').trim();
+  const siteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined)?.trim() || '';
 
   const debugModeEnabled = Boolean(debugEnv && debugEnv.trim().length > 0);
   if (debugModeEnabled) {
@@ -118,10 +122,7 @@ function initAppCheckBeforeServices(): void {
 // Mandatory: Initialize App Check BEFORE Firestore and Firebase AI Logic
 initAppCheckBeforeServices();
 
-export const db: Firestore = getFirestore(
-  firebaseApp,
-  firebaseConfig.firestoreDatabaseId,
-);
+export const db: Firestore = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
 export const auth: Auth = getAuth(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -142,6 +143,13 @@ export function getFirebaseProjectInfo() {
 }
 
 export async function testFirestoreConnection(): Promise<{ ok: boolean; detail: string }> {
+  if (!firebaseConfigReady) {
+    return {
+      ok: false,
+      detail: 'Firebase project configuration is missing. Copy .env.example to .env.local and fill in the Firebase web-app values.',
+    };
+  }
+
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
     return { ok: true, detail: 'Connected to Cloud Firestore server.' };
@@ -166,28 +174,28 @@ export function handleFirestoreError(
   operationType: OperationType,
   path: string | null,
 ): never {
+  const errorCode =
+    error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+      ? error.code
+      : null;
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo:
-        auth.currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email,
-        })) || [],
-    },
+    errorCode,
     operationType,
-    path,
+    collection: path?.split('/')[0] || null,
+    authenticated: Boolean(auth.currentUser),
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+
+  // Never place emails, user IDs, provider details, or raw backend messages in logs.
+  console.error('[SunFix] Firestore operation failed', errInfo);
+  throw new Error(
+    `Cloud ${operationType.toLowerCase()} failed${errorCode ? ` (${errorCode})` : ''}.`,
+  );
 }
 
 export async function signInWithGoogle(): Promise<User> {
+  if (!firebaseConfigReady) {
+    throw new Error('Firebase is not configured. Copy .env.example to .env.local and add your Firebase web-app settings.');
+  }
   const result = await signInWithPopup(auth, googleProvider);
   return result.user;
 }
