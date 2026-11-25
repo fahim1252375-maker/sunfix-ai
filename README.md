@@ -45,12 +45,16 @@ React 19 · TypeScript · Vite · Tailwind CSS · Three.js · React Three Fiber 
 
 Run the same checks used by CI:
 
-- bun run lint
-- bun run lint:eslint
-- bun run test
-- bun run build
+- `bun run lint` — TypeScript
+- `bun run lint:eslint` — ESLint and Firebase security-rules lint
+- `bun run test` — unit and static regression tests
+- `bun run test:rules` — Firestore Emulator authorization tests
+- `bun run test:e2e` — desktop/mobile Chromium, accessibility, offline persistence, and authenticated emulator sync
+- `bun run build` — production Vite build
 
-Or run bun run check.
+The first emulator run downloads the Firestore/Auth emulator binaries. For local browser QA, use the emulator environment described in `docs/TESTING.md`.
+
+Run `bun run check` for the core unit/type/lint/build checks; the CI workflow additionally runs emulators and Playwright.
 
 ## Firebase configuration and security
 
