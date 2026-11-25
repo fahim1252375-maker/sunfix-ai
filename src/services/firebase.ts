@@ -126,7 +126,7 @@ function initAppCheckBeforeServices(): void {
   } catch (err) {
     const errorCode =
       err && typeof err === 'object' && 'code' in err && typeof err.code === 'string'
-        ? err.code.slice(0, 80)
+        ? (/^[a-z0-9/_-]{1,80}$/i.test(err.code) ? err.code : null)
         : null;
     appCheckStatus = {
       state: 'error',
@@ -185,7 +185,7 @@ export async function testFirestoreConnection(): Promise<{ ok: boolean; detail: 
     if (message.includes('permission') || message.includes('insufficient')) {
       return { ok: true, detail: 'Firestore endpoint reachable and security rules enforced.' };
     }
-    const errorCode = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code.slice(0, 80) : null;
+    const errorCode = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? (/^[a-z0-9/_-]{1,80}$/i.test(error.code) ? error.code : null) : null;
     return { ok: false, detail: errorCode ? `Firestore connection failed (${errorCode}). Check network and project configuration.` : 'Firestore connection failed. Check network and project configuration.' };
   }
 }
