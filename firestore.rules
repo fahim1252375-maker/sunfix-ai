@@ -268,7 +268,10 @@ service cloud.firestore {
     }
 
     match /assets/{assetId} {
-      allow get: if isValidId(assetId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(assetId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/assets/$(assetId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(assetId)
         && isVerifiedUser()
@@ -291,7 +294,10 @@ service cloud.firestore {
     }
 
     match /diagnosticCases/{caseId} {
-      allow get: if isValidId(caseId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(caseId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/diagnosticCases/$(caseId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(caseId)
         && isVerifiedUser()
@@ -317,7 +323,10 @@ service cloud.firestore {
     }
 
     match /workOrders/{workOrderId} {
-      allow get: if isValidId(workOrderId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(workOrderId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/workOrders/$(workOrderId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(workOrderId)
         && isVerifiedUser()
@@ -346,7 +355,10 @@ service cloud.firestore {
     }
 
     match /evidenceRecords/{evidenceId} {
-      allow get: if isValidId(evidenceId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(evidenceId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/evidenceRecords/$(evidenceId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(evidenceId)
         && isVerifiedUser()
@@ -359,7 +371,10 @@ service cloud.firestore {
     }
 
     match /serviceReports/{reportId} {
-      allow get: if isValidId(reportId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(reportId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/serviceReports/$(reportId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(reportId)
         && isVerifiedUser()
@@ -372,7 +387,10 @@ service cloud.firestore {
     }
 
     match /knowledgeDocs/{docId} {
-      allow get: if isValidId(docId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(docId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/knowledgeDocs/$(docId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(docId)
         && isVerifiedUser()
@@ -383,7 +401,10 @@ service cloud.firestore {
     }
 
     match /copilotThreads/{threadId} {
-      allow get: if isValidId(threadId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(threadId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/copilotThreads/$(threadId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(threadId)
         && isVerifiedUser()
