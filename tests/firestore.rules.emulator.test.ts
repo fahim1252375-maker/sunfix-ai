@@ -138,6 +138,12 @@ test('Firestore enforces authenticated owner isolation for reads and writes', as
   await assertFails(getDoc(doc(other, 'assets', 'asset-one')));
   await assertFails(getDoc(doc(anonymous, 'assets', 'asset-one')));
 
+  // An authenticated, verified account may check an unused ID before creating it.
+  // That does not grant access to another owner's existing documents.
+  const missingSnapshot = await assertSucceeds(getDoc(doc(other, 'assets', 'asset-not-yet-created')));
+  assert.equal(missingSnapshot.exists(), false);
+  await assertFails(getDoc(doc(anonymous, 'assets', 'asset-not-yet-created')));
+
   await assertFails(
     setDoc(doc(other, 'assets', 'asset-two'), {
       ...assetRecord(OWNER_UID),
