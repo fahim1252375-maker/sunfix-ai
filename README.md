@@ -1,47 +1,86 @@
 # SunFix Field
 
-**Offline-Ready Hybrid AI Solar Diagnostics & Field Operations Platform**
+**Offline-ready solar diagnostics and field-service workspace**
 
-SunFix Field connects a **Mesa Ridge 48 kWp 3D Solar Digital Twin** (with 2D isometric SVG fallback), **6 interactive Field Service Lifecycle stage pages** (`/lifecycle/:slug`), an **8-step Evidence-First AI Diagnostic Wizard**, a **Mandatory Electrical Safety Gate**, **Safety-Gated Repair Workflows**, **FieldProof Evidence Capture**, an **Energy Impact Calculator**, and **Verifiable PDF Service Reports** — backed by **Firebase AI Logic (`PREFER_ON_DEVICE` + `ONLY_IN_CLOUD`)**, **Firebase App Check**, **Cloud Firestore**, and **IndexedDB / PWA offline persistence**.
+SunFix Field is a React + TypeScript progressive web app prototype for solar asset operations. It combines an evidence-first diagnostic workflow, repair and service-report flows, an interactive 3D solar digital twin with a 2D fallback, a hybrid AI interface with deterministic demo fallbacks, and local offline persistence.
 
-## Core Architecture & Stack
-- **Frontend & Design System**: React 19, TypeScript, Tailwind CSS v4, Motion (`motion/react`), Lucide Icons, Recharts, Fraunces + Inter + IBM Plex Mono (`src/theme/tokens.ts` + CSS variables in `src/index.css`)
-- **3D Digital Twin**: Three.js + `@react-three/fiber` + `@react-three/drei` (`1 unit = 1 m` commercial `34×22 m` rooftop, 120 instanced 400 Wp PV modules, 2 string combiners, 4-layer exploded-view 40 kW inverter with reactive LCD, VoltVault LFP-60 battery container, AC disconnect & background utility pole/transformer, 06:00–18:00 irradiance slider, layer toggles, camera presets, and interactive 2D SVG fallback)
-- **Hybrid AI**: `firebase/ai` (`GoogleAIBackend`, `InferenceMode.PREFER_ON_DEVICE`, `InferenceMode.ONLY_IN_CLOUD`) + live browser capability probe + interactive 10-panel Honest Hybrid Inference Architecture section + Zod schema validation (`DiagnosticAssessmentSchema`) + deterministic offline rule fallback
-- **Security & Persistence**: Firebase Auth (Google), Cloud Firestore (owner-scoped rules), Firebase App Check (`ReCaptchaEnterpriseProvider`), IndexedDB (`sunfix-field-db`) sync queue, `vite-plugin-pwa`
-- **Reports**: Printable 17-section FieldProof template + client-side PDF export (`jsPDF`)
+> **Important:** Demo assets, telemetry, fault scenarios, AI explanations, and generated evidence are simulated unless explicitly connected to verified live systems. Do not use demo output as electrical safety advice or as a substitute for a qualified technician's inspection.
 
-## Getting Started
+## Features
 
-1. Install dependencies:
-   ```bash
+- Solar asset dashboard, lifecycle views, diagnostic wizard, repair work orders, evidence capture, knowledge library, and service reports.
+- Interactive Three.js / React Three Fiber digital twin with a 2D SVG fallback.
+- Hybrid AI service abstraction with schema validation and deterministic fallback behaviour.
+- Firebase Authentication and Cloud Firestore integration.
+- Firebase App Check integration when configured.
+- IndexedDB offline workspace and sync queue, scoped separately for anonymous and authenticated users.
+- PWA support and responsive layouts.
+
+## Technology
+
+React 19 · TypeScript · Vite · Tailwind CSS · Three.js · React Three Fiber · Firebase · IndexedDB · Zod.
+
+## Requirements
+
+- Node.js 22 or newer
+- npm 10+ (or Bun compatible with the committed lockfile)
+
+## Local development
+
+1. Clone the repository and install dependencies:
+
    npm install
-   ```
-2. Configure environment variables (copy `.env.example` to `.env.local` if supplying App Check keys):
-   - `VITE_RECAPTCHA_SITE_KEY`: reCAPTCHA Enterprise site key from Firebase Console -> App Check
-   - `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN`: Optional local development debug token (never commit)
-3. Start development server:
-   ```bash
-   npm run dev
-   ```
-4. Run tests and build checks:
-   ```bash
-   npx tsx --test src/utils/diagnosticsLogic.test.ts firestore.rules.test.ts
-   npx eslint firestore.rules
-   npx tsc --noEmit
-   npm run build
-   ```
 
-## Demonstration Data Notice
-All pre-populated assets (such as `Mesa Ridge Commercial Rooftop 48 kW [DEMO]`), irradiance/telemetry curves, fault scenarios (`G04-UV`, `BMS-12`, `STR-LOW`, `COM-09`), and pre-cached Knowledge Library entries are **explicitly labelled as `[DEMO]` or `SIMULATED`** until replaced by your own technician records.
+2. Create your local environment file:
+
+   cp .env.example .env.local
+
+3. Fill in the Firebase Web App values in .env.local. Firebase is optional for the local demo experience, but sign-in and cloud sync require a valid Firebase project, enabled Google provider, and deployed Firestore rules.
+
+4. Start the app:
+
+   npm run dev
+
+## Quality checks
+
+Run the same checks used by CI:
+
+- npm run lint
+- npm run lint:eslint
+- npm test
+- npm run build
+
+Or run npm run check.
+
+## Firebase configuration and security
+
+See docs/FIREBASE_SETUP.md and firestore.rules.
+
+- Never commit .env.local, Firebase Admin credentials, service-account keys, or real API secrets.
+- Browser Firebase Web App config is not an Admin credential, but configure Authentication, Firestore rules, and App Check correctly.
+- Never put a Gemini secret in a VITE_* variable. Vite exposes VITE_* values to browser bundles.
+- Client-side Firebase rules are the actual data authorization boundary; UI role checks are not security controls.
+- Validate rules in a Firebase emulator before production deployment.
 
 ## Documentation
-- [`CHANGELOG.md`](CHANGELOG.md)
-- [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md)
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- [`docs/FIREBASE_SETUP.md`](docs/FIREBASE_SETUP.md)
-- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
-- [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md)
+
+- CHANGELOG.md
+- docs/PRODUCT_SPEC.md
+- docs/ARCHITECTURE.md
+- docs/FIREBASE_SETUP.md
+- docs/DEMO_SCRIPT.md
+- docs/TEST_PLAN.md
+
+## Production readiness
+
+This repository is a development/demo baseline, not a certified solar operations product. Before production use:
+
+1. Configure Firebase credentials and verify Google sign-in.
+2. Run Firestore rules tests against the Firebase Emulator Suite (static checks alone are insufficient).
+3. Validate all AI provider paths and rate limits; use server-side secrets for provider APIs.
+4. Perform accessibility, browser, mobile, and offline/online transition testing.
+5. Review simulated data labels, technician safety procedures, data retention, and privacy requirements.
 
 ## License
-Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE).
+
+Apache-2.0. See LICENSE.
