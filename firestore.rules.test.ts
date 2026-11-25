@@ -42,6 +42,18 @@ test('firestore.rules forbids unauthenticated writes and role escalation on user
   assert.match(rules, /isSupervisor\(\)/);
 });
 
+test('firestore.rules keeps Stop-Work cases blocked and requires a safe linked case', () => {
+  const rules = fs.readFileSync(RULES_PATH, 'utf8');
+  assert.ok(
+    rules.includes("!data.stopWork || data.status == 'safety_blocked'"),
+    'A Stop-Work diagnostic case must remain safety-blocked',
+  );
+  assert.ok(
+    rules.includes('get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.stopWork == false'),
+    'A work order cannot be marked safety-cleared while its linked case has a Stop-Work hold',
+  );
+});
+
 test('firestore.rules blocks incomplete or uncleared work-order completion', () => {
   const rules = fs.readFileSync(RULES_PATH, 'utf8');
   assert.ok(
