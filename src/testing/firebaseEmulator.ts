@@ -52,5 +52,12 @@ export async function createVerifiedEmulatorUser(): Promise<User> {
     throw new Error('Firebase Auth Emulator did not return the expected verified test user.');
   }
 
+  // Firestore rules inspect the email_verified ID-token claim, not the User object's
+  // local emailVerified property. Refresh once so the emulator-issued token includes it.
+  const refreshedToken = await verifiedUser.getIdTokenResult(true);
+  if (refreshedToken.claims.email_verified !== true) {
+    throw new Error('Firebase Auth Emulator token does not yet include email_verified=true.');
+  }
+
   return verifiedUser;
 }
