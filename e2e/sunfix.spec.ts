@@ -129,7 +129,6 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
   await page.goto('/');
 
   const result = await page.evaluate(async () => {
-    const firebaseModulePath = '/src/services/firebase.ts';
     const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
     const { createVerifiedEmulatorUser } =
       await import(/* @vite-ignore */ emulatorTestModulePath);
