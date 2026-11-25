@@ -1,0 +1,162 @@
+name: Inspect uploaded source archive
+
+on:
+  push:
+    branches:
+      - audit/sunfix-source-review
+    paths:
+      - sunfix-field-5.zip
+      - .github/workflows/inspect-source-archive.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sunfix-source-archive-review
+  cancel-in-progress: false
+
+jobs:
+  inspect-archive:
+    name: Safe archive inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Inspect and extract safe source files
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import re
+          import shutil
+          import sys
+
+          archive = Path("sunfix-field-5.zip")
+          output = Path("safe-source")
+          if not archive.is_file():
+              raise SystemExit("Source archive not found.")
+          if output.exists():
+              shutil.rmtree(output)
+          output.mkdir()
+
+          ignored_parts = {
+              ".git", "node_modules", "dist", "build", ".next", ".nuxt",
+              ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache",
+              ".turbo", "coverage"
+          }
+          sensitive_names = {
+              ".env", "credentials.json", "service-account.json",
+              "id_rsa", "id_ed25519"
+          }
+          safe_env_names = {".env.example", ".env.sample", ".env.template"}
+          sensitive_suffixes = {
+              ".pem", ".key", ".p12", ".pfx", ".jks", ".keystore",
+              ".db", ".sqlite", ".sqlite3", ".dump", ".bak",
+              ".csv", ".tsv", ".parquet", ".log"
+          }
+          nested_archive_suffixes = {".zip", ".7z", ".rar", ".tar", ".gz"}
+
+          secret_patterns = [
+              (b"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----", "private-key"),
+              (b"sk-ant-[A-Za-z0-9_-]{20,}", "anthropic-key"),
+              (b"gh[pousr]_[A-Za-z0-9]{20,}", "github-token"),
+              (b"github_pat_[A-Za-z0-9_]{20,}", "github-fine-grained-token"),
+              (b"AIza[0-9A-Za-z_-]{30,}", "google-api-key"),
+              (b"AKIA[0-9A-Z]{16}", "aws-access-key"),
+              (b"sk_live_[A-Za-z0-9]{16,}", "stripe-live-key"),
+          ]
+
+          extracted, excluded, flagged = [], [], []
+          with ZipFile(archive) as zf:
+              for info in zf.infolist():
+                  raw = info.filename
+                  path = PurePosixPath(raw)
+                  parts = path.parts
+
+                  if path.is_absolute() or ".." in parts or "\\" in raw or (parts and ":" in parts[0]):
+                      raise SystemExit("Unsafe archive path detected; extraction aborted.")
+                  if not parts or raw.endswith("/"):
+                      continue
+                  if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                      excluded.append((raw, "symlink"))
+                      continue
+                  lower_parts = [p.lower() for p in parts]
+                  name = parts[-1]
+                  lower_name = name.lower()
+                  suffix = Path(lower_name).suffix
+
+                  if any(p in ignored_parts for p in lower_parts):
+                      excluded.append((raw, "generated-or-dependency"))
+                      continue
+                  if (lower_name.startswith(".env") and lower_name not in safe_env_names):
+                      excluded.append((raw, "environment-secret-file"))
+                      continue
+                  if lower_name in sensitive_names or suffix in sensitive_suffixes:
+                      excluded.append((raw, "sensitive-or-runtime-data"))
+                      continue
+                  if suffix in nested_archive_suffixes:
+                      excluded.append((raw, "nested-archive"))
+                      continue
+                  if info.file_size > 15 * 1024 * 1024:
+                      excluded.append((raw, "oversized-file"))
+                      continue
+
+                  data = zf.read(info)
+                  matched = next((rule for pattern, rule in secret_patterns if re.search(pattern, data)), None)
+                  if matched:
+                      flagged.append((raw, matched))
+                      excluded.append((raw, "secret-pattern-" + matched))
+                      continue
+
+                  destination = output.joinpath(*parts)
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.write_bytes(data)
+                  extracted.append(raw)
+
+          manifests = [
+              "package.json", "pnpm-lock.yaml", "package-lock.json",
+              "yarn.lock", "bun.lock", "pyproject.toml", "requirements.txt",
+              "Pipfile", "go.mod", "Cargo.toml", "composer.json"
+          ]
+          found_manifests = sorted(
+              p for p in extracted
+              if Path(p).name in manifests
+          )
+          roots = sorted({p.split("/", 1)[0] for p in extracted})
+          (output / "ARCHIVE_REVIEW_MANIFEST.txt").write_text(
+              "SunFix AI source archive review\n"
+              f"Archive: {archive.name}\n"
+              f"Extracted files: {len(extracted)}\n"
+              f"Excluded files: {len(excluded)}\n"
+              f"Secret-pattern files excluded: {len(flagged)}\n"
+              f"Project manifests: {', '.join(found_manifests) or 'none detected'}\n"
+              f"Top-level entries: {', '.join(roots) or 'none'}\n\n"
+              "Excluded entries (path and category only; file contents are never printed):\n"
+              + "".join(f"- {p} [{reason}]\n" for p, reason in excluded),
+              encoding="utf-8"
+          )
+
+          print(f"Archive inspection completed: {len(extracted)} files extracted.")
+          print(f"Excluded: {len(excluded)}; secret-pattern files excluded: {len(flagged)}.")
+          print("Detected project manifests: " + (", ".join(found_manifests) or "none"))
+          print("Top-level entries: " + (", ".join(roots) or "none"))
+          if flagged:
+              print("Potential credential material was excluded from the artifact. Review the archive locally and rotate any exposed live credentials.")
+          if not extracted:
+              raise SystemExit("No safe source files were available to inspect.")
+          if not found_manifests:
+              print("Warning: no standard project manifest was detected; CI checks cannot be selected safely yet.")
+          PY
+
+      - name: Upload reviewed source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunfix-safe-source
+          path: safe-source/
+          if-no-files-found: error
+          retention-days: 2
+
