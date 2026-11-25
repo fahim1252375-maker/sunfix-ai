@@ -40,9 +40,20 @@ The browser must not receive a private Gemini API key. Do not use a VITE_GEMINI_
 
 The deterministic demo fallback is not a live AI service and must be labelled accordingly.
 
-## 6. Before production
+## 6. Local Emulator Suite
 
-- Test sign-in, sign-out, owner isolation, and revoked-user access.
+1. Install dependencies with `bun install`.
+2. Set `VITE_USE_FIREBASE_EMULATORS=true` in `.env.local` only for local development.
+3. Start Auth and Firestore emulators with `bunx firebase-tools emulators:start --only auth,firestore --project demo-sunfix-field`.
+4. In a second terminal, run `bun run dev`.
+5. For actual rules tests, run `bun run test:rules`.
+6. For authenticated SDK sync and browser checks, run `bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`.
+
+The app only connects to emulators when both Vite development mode and `VITE_USE_FIREBASE_EMULATORS=true` are active. Production builds ignore this switch.
+
+## 7. Before production
+
+- Test sign-in, sign-out, owner isolation, and revoked-user access with the real project.
 - Run Firestore rules tests against the Firebase Emulator Suite.
 - Verify App Check in production and local debug mode separately.
 - Configure backups, retention, monitoring, billing alerts, and incident response.
