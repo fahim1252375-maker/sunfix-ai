@@ -130,31 +130,10 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
 
   const result = await page.evaluate(async () => {
     const firebaseModulePath = '/src/services/firebase.ts';
-    const { auth } = await import(/* @vite-ignore */ firebaseModulePath);
-    const { createUserWithEmailAndPassword } = await import('firebase/auth');
-    const apiKey = 'demo-api-key';
-    const email = `playwright-${crypto.randomUUID()}@example.test`;
-    const password = 'Emulator-Test-Password-123!';
-
-    const credentials = await createUserWithEmailAndPassword(auth, email, password);
-    const idToken = await credentials.user.getIdToken();
-    const verifyResponse = await fetch(
-      `http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:update?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, emailVerified: true, returnSecureToken: true }),
-      },
-    );
-    if (!verifyResponse.ok) {
-      throw new Error(`Auth emulator could not verify test user: HTTP ${verifyResponse.status}`);
-    }
-
-    await credentials.user.reload();
-    const authenticatedUser = auth.currentUser;
-    if (!authenticatedUser?.emailVerified) {
-      throw new Error('Auth emulator did not apply the emailVerified test claim.');
-    }
+    const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
+    const { createVerifiedEmulatorUser } =
+      await import(/* @vite-ignore */ emulatorTestModulePath);
+    const authenticatedUser = await createVerifiedEmulatorUser();
 
     const firestoreSyncModulePath = '/src/services/firestoreSync.ts';
     const { syncQueueItemToFirestore, fetchUserCloudRecordCounts } =
