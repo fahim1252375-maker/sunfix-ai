@@ -144,7 +144,8 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
     }
 
     await credentials.user.reload();
-    if (!auth.currentUser?.emailVerified) {
+    const authenticatedUser = auth.currentUser;
+    if (!authenticatedUser?.emailVerified) {
       throw new Error('Auth emulator did not apply the emailVerified test claim.');
     }
 
@@ -173,11 +174,11 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
       updatedAt: timestamp,
     };
 
-    const sync = await syncQueueItemToFirestore(item, credentials.user.uid);
-    const counts = await fetchUserCloudRecordCounts(credentials.user.uid);
+    const sync = await syncQueueItemToFirestore(item, authenticatedUser.uid);
+    const counts = await fetchUserCloudRecordCounts(authenticatedUser.uid);
     return {
-      emailVerified: auth.currentUser.emailVerified,
-      uid: credentials.user.uid,
+      emailVerified: authenticatedUser.emailVerified,
+      uid: authenticatedUser.uid,
       sync,
       counts,
     };
