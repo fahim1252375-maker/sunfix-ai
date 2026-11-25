@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { PersistedWorkspaceData, SyncQueueItem } from '../types/sunfix';
+import type { SyncQueueItem } from '../types/sunfix';
+import type { PersistedWorkspaceData } from './offlineStore';
 import {
   clearAllIDB,
   getStorageScopeId,
