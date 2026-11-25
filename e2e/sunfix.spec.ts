@@ -135,7 +135,8 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
 
 test('live Firebase AI Logic returns a validated cloud result when explicitly enabled @live-ai', async ({
   page,
-}) => {
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Run the live provider smoke once per CI workflow.');
   test.skip(
     process.env.SUNFIX_RUN_LIVE_AI_SMOKE !== 'true',
     'Set SUNFIX_RUN_LIVE_AI_SMOKE=true and provide a real Firebase project and App Check site key to run the live provider check.',
