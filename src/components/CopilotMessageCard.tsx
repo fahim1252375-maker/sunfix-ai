@@ -306,7 +306,7 @@ export const CopilotMessageCard: React.FC<CopilotMessageCardProps> = ({
               <button
                 type="button"
                 aria-label="Helpful answer"
-                onClick={() => onRateFeedback(message.id, { rating: 'helpful' })}
+                onClick={() => onRateFeedback(message.id, { rating: 'helpful', timestamp: new Date().toISOString() })}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px]"
                 style={{
                   borderColor:
@@ -323,7 +323,7 @@ export const CopilotMessageCard: React.FC<CopilotMessageCardProps> = ({
                 aria-label="Not helpful answer"
                 onClick={() => {
                   setShowReasonInput(true);
-                  onRateFeedback(message.id, { rating: 'not_helpful', reason: reasonDraft });
+                  onRateFeedback(message.id, { rating: 'not_helpful', reason: reasonDraft, timestamp: new Date().toISOString() });
                 }}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px]"
                 style={{
