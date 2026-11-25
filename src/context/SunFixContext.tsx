@@ -40,6 +40,7 @@ import {
   loadWorkspaceFromIDB,
   saveSyncQueueItemToIDB,
   saveWorkspaceToIDB,
+  getStorageScopeId,
 } from '../services/offlineStore';
 import type {
   AIInferenceRecord,
@@ -231,6 +232,22 @@ function makeInitialDraft(assets: Asset[]): WizardDraft {
   };
 }
 
+function makeInitialCopilotThread(): CopilotThread {
+  const now = new Date().toISOString();
+  return {
+    id: 'thread-demo-mesa',
+    ownerId: 'demo-user',
+    title: 'Mesa Ridge G04-UV Field Triage',
+    assetId: DEMO_ASSETS[0].id,
+    componentId: 'inverter',
+    caseId: DEMO_CASES[0].id,
+    language: 'en',
+    messages: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 function parseInitialLocation(): { route: ScreenRoute; lifecycleSlug: LifecycleSlug } {
   if (typeof window !== 'undefined') {
     const pathname = window.location.pathname || '/';
@@ -267,6 +284,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const storageScopeId = getStorageScopeId(user?.uid);
 
   const [assets, setAssets] = useState<Asset[]>(DEMO_ASSETS);
   const [cases, setCases] = useState<DiagnosticCase[]>(DEMO_CASES);
@@ -278,7 +296,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     DEMO_CASES[0].inferenceRecord,
   ]);
   const [comparisons, setComparisons] = useState<HybridComparisonEntry[]>([]);
-  const [hydratedFromIDB, setHydratedFromIDB] = useState(false);
+  const [hydratedScopeId, setHydratedScopeId] = useState<string | null>(null);
 
   const [selectedAssetId, setSelectedAssetId] = useState<string>(DEMO_ASSETS[0].id);
   const [selectedTwinComponentId, setSelectedTwinComponentId] =
@@ -378,27 +396,57 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     refreshRuntimeCapabilities();
   }, [refreshRuntimeCapabilities]);
 
-  // Hydrate from IndexedDB on boot
+  // Hydrate a distinct local workspace after Firebase Auth has resolved.
+  // Never reuse the prior account's records while a different account is loading.
   useEffect(() => {
+    if (!authReady) return;
     let active = true;
+    const scopeId = storageScopeId;
+    setHydratedScopeId(null);
+    setAssets(DEMO_ASSETS);
+    setCases(DEMO_CASES);
+    setWorkOrders(DEMO_WORK_ORDERS);
+    setEvidence(DEMO_EVIDENCE);
+    setReports(DEMO_REPORTS);
+    setKnowledgeDocs(DEMO_KNOWLEDGE_LIBRARY);
+    setInferenceHistory([DEMO_CASES[0].inferenceRecord]);
+    setComparisons([]);
+    setSyncQueue([]);
+    setCopilotThreads([makeInitialCopilotThread()]);
+    setActiveCopilotThreadId('thread-demo-mesa');
+    setSelectedAssetId(DEMO_ASSETS[0].id);
+    setSelectedTwinComponentId('inverter');
+    setActiveCaseId(DEMO_CASES[0].id);
+    setActiveWorkOrderId(DEMO_WORK_ORDERS[0].id);
+    setActiveReportId(DEMO_REPORTS[0].id);
+    setActiveFaultScenario(DEMO_FAULT_SCENARIOS[1]);
+    setTwinHourDecimal(12.5);
+    setWizardDraft(makeInitialDraft(DEMO_ASSETS));
+    setLanguage('en');
+    setQualityTier('high');
+    setSupervisorRoleActive(false);
+    setLastAiWarning(null);
+    setCloudCounts(null);
+    setIsSyncingNow(false);
+
     (async () => {
       const [saved, queue, avail, fsStatus, caps] = await Promise.all([
-        loadWorkspaceFromIDB(),
-        loadSyncQueueFromIDB(),
+        loadWorkspaceFromIDB(scopeId),
+        loadSyncQueueFromIDB(scopeId),
         checkInitialDeviceAvailability(),
         testFirestoreConnection(),
         inspectHybridRuntimeCapabilities(effectiveOnline),
       ]);
       if (!active) return;
       if (saved) {
-        if (saved.assets?.length) setAssets(saved.assets);
+        if (saved.assets) setAssets(saved.assets);
         if (saved.cases) setCases(saved.cases);
         if (saved.workOrders) setWorkOrders(saved.workOrders);
         if (saved.evidence) setEvidence(saved.evidence);
         if (saved.reports) setReports(saved.reports);
-        if (saved.knowledgeDocs?.length) setKnowledgeDocs(saved.knowledgeDocs);
-        if (saved.inferenceHistory?.length) setInferenceHistory(saved.inferenceHistory);
-        if (saved.comparisons?.length) setComparisons(saved.comparisons);
+        if (saved.knowledgeDocs) setKnowledgeDocs(saved.knowledgeDocs);
+        if (saved.inferenceHistory) setInferenceHistory(saved.inferenceHistory);
+        if (saved.comparisons) setComparisons(saved.comparisons);
         if (saved.copilotThreads?.length) {
           setCopilotThreads(saved.copilotThreads);
           setActiveCopilotThreadId(saved.copilotThreads[0].id);
@@ -406,21 +454,22 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (saved.language) setLanguage(saved.language);
         if (saved.qualityTier) setQualityTier(saved.qualityTier);
       }
-      if (queue.length > 0) setSyncQueue(queue);
+      setSyncQueue(queue);
       setDeviceAvailability(avail.availability);
       setDeviceStatusDetail(avail.detail);
       setFirestoreStatus(fsStatus);
       setRuntimeCapabilities(caps);
-      setHydratedFromIDB(true);
+      setHydratedScopeId(scopeId);
     })();
+
     return () => {
       active = false;
     };
-  }, [effectiveOnline]);
+  }, [authReady, storageScopeId]);
 
-  // Persist workspace changes to IndexedDB
+  // Persist only after the matching account workspace has finished hydration.
   useEffect(() => {
-    if (!hydratedFromIDB) return;
+    if (!authReady || hydratedScopeId !== storageScopeId) return;
     saveWorkspaceToIDB({
       assets,
       cases,
@@ -434,7 +483,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       language,
       qualityTier,
       updatedAt: new Date().toISOString(),
-    });
+    }, storageScopeId);
   }, [
     assets,
     cases,
@@ -447,7 +496,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     copilotThreads,
     language,
     qualityTier,
-    hydratedFromIDB,
+    authReady,
+    hydratedScopeId,
+    storageScopeId,
   ]);
 
   // Auth state listener
@@ -494,19 +545,20 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatedAt: new Date().toISOString(),
       };
       setSyncQueue((prev) => [item, ...prev.slice(0, 49)]);
-      saveSyncQueueItemToIDB(item);
+      saveSyncQueueItemToIDB(item, storageScopeId);
     },
-    [],
+    [storageScopeId],
   );
 
   const processSyncQueue = useCallback(async () => {
-    if (!effectiveOnline || isSyncingNow) return;
+    if (!authReady || !effectiveOnline || isSyncingNow) return;
     const pendingItems = syncQueue.filter((q) => q.status === 'pending' || q.status === 'failed');
     if (pendingItems.length === 0) return;
 
     setIsSyncingNow(true);
     try {
       for (const item of pendingItems) {
+        if (storageScopeId !== getStorageScopeId(auth.currentUser?.uid)) break;
         const syncingItem: SyncQueueItem = { ...item, status: 'syncing', attempts: item.attempts + 1 };
         setSyncQueue((prev) => prev.map((q) => (q.id === item.id ? syncingItem : q)));
 
@@ -519,11 +571,12 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             updatedAt: new Date().toISOString(),
           };
           setSyncQueue((prev) => prev.map((q) => (q.id === item.id ? localSynced : q)));
-          await saveSyncQueueItemToIDB(localSynced);
+          await saveSyncQueueItemToIDB(localSynced, storageScopeId);
           continue;
         }
 
         const res = await syncQueueItemToFirestore(item, user.uid);
+        if (storageScopeId !== getStorageScopeId(auth.currentUser?.uid)) break;
         const updatedItem: SyncQueueItem = {
           ...syncingItem,
           status: res.status,
@@ -531,17 +584,17 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           updatedAt: new Date().toISOString(),
         };
         setSyncQueue((prev) => prev.map((q) => (q.id === item.id ? updatedItem : q)));
-        await saveSyncQueueItemToIDB(updatedItem);
+        await saveSyncQueueItemToIDB(updatedItem, storageScopeId);
       }
 
-      if (user) {
+      if (user && storageScopeId === getStorageScopeId(auth.currentUser?.uid)) {
         const counts = await fetchUserCloudRecordCounts(user.uid);
         setCloudCounts(counts);
       }
     } finally {
       setIsSyncingNow(false);
     }
-  }, [effectiveOnline, isSyncingNow, syncQueue, user]);
+  }, [authReady, effectiveOnline, isSyncingNow, syncQueue, user, storageScopeId]);
 
   // Automatic sync when connectivity returns
   useEffect(() => {
@@ -1596,7 +1649,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const resetDemoWorkspace = useCallback(async () => {
-    await clearAllIDB();
+    await clearAllIDB(storageScopeId);
     setAssets(DEMO_ASSETS);
     setCases(DEMO_CASES);
     setWorkOrders(DEMO_WORK_ORDERS);
@@ -1630,7 +1683,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       },
     ]);
     setActiveCopilotThreadId('thread-demo-mesa');
-  }, []);
+  }, [storageScopeId]);
 
   const value: SunFixContextValue = {
     route,
@@ -1724,7 +1777,22 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     resetDemoWorkspace,
   };
 
-  return <SunFixContext.Provider value={value}>{children}</SunFixContext.Provider>;
+  const workspaceReady = authReady && hydratedScopeId === storageScopeId;
+
+  return (
+    <SunFixContext.Provider value={value}>
+      {workspaceReady ? (
+        children
+      ) : (
+        <div className="min-h-screen flex items-center justify-center bg-[#0E1A17] px-6 text-center text-[#DDE8DC]" role="status" aria-live="polite">
+          <div>
+            <p className="text-sm font-semibold tracking-wide">SunFix Field</p>
+            <p className="mt-2 text-xs text-[#AAB9AA]">Loading your private workspace…</p>
+          </div>
+        </div>
+      )}
+    </SunFixContext.Provider>
+  );
 };
 
 export function useSunFix(): SunFixContextValue {
