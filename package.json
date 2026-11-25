@@ -11,7 +11,10 @@
     "lint": "tsc --noEmit",
     "test": "tsx --test src/utils/*.test.ts src/components/*.test.ts src/services/*.test.ts firestore.rules.test.ts",
     "lint:eslint": "eslint .",
-    "check": "npm run lint && npm run lint:eslint && npm test && npm run build"
+    "check": "npm run lint && npm run lint:eslint && npm test && npm run build",
+    "test:rules:integration": "tsx --test tests/firestore.rules.emulator.test.ts",
+    "test:rules": "bunx firebase-tools emulators:exec --only firestore --project demo-sunfix-field \"bun run test:rules:integration\"",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
@@ -46,6 +49,10 @@
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.56.1",
+    "fake-indexeddb": "^6.2.4"
   }
 }
