@@ -156,8 +156,9 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
       throw new Error('Auth emulator did not apply the emailVerified test claim.');
     }
 
+    const firestoreSyncModulePath = '/src/services/firestoreSync.ts';
     const { syncQueueItemToFirestore, fetchUserCloudRecordCounts } =
-      await import(/* @vite-ignore */ '/src/services/firestoreSync.ts');
+      await import(/* @vite-ignore */ firestoreSyncModulePath);
     const timestamp = new Date().toISOString();
     const item = {
       id: `queue-${crypto.randomUUID()}`,
