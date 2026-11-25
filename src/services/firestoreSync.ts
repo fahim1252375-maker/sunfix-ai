@@ -283,7 +283,7 @@ export async function syncQueueItemToFirestore(
   } catch (err) {
     const errorCode =
       err && typeof err === 'object' && 'code' in err && typeof err.code === 'string'
-        ? err.code.slice(0, 80)
+        ? (/^[a-z0-9/_-]{1,80}$/i.test(err.code) ? err.code : null)
         : null;
     if (errorCode?.toLowerCase().includes('permission')) {
       handleFirestoreError(err, OperationType.WRITE, `${item.entityType}/${docId}`);
