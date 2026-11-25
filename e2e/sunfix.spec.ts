@@ -31,11 +31,17 @@ test('landing page renders at desktop and mobile widths without horizontal overf
   ).toEqual([]);
 });
 
-test('demo workspace navigation and simulated offline mode remain usable', async ({ page }) => {
+test('demo workspace navigation and simulated offline mode remain usable', async ({ page }, testInfo) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Enter Demo Workspace' }).click();
 
-  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+  if (testInfo.project.name === 'mobile-chromium') {
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+    await expect(page.getByRole('button', { name: 'Repair Operations' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close navigation menu' }).click();
+  } else {
+    await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible();
+  }
   await expect(page.getByRole('button', { name: 'Online' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Online' }).click();
