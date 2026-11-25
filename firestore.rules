@@ -1,0 +1,397 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwnerId(ownerId) {
+      return isVerifiedUser() && ownerId == request.auth.uid;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.uid == userId
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.role in ['technician', 'engineer', 'supervisor']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAsset(data, assetId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'siteType', 'locationLabel', 'capacityKw',
+          'status', 'inverterModel', 'inverterSerial', 'panelCount', 'isDemo',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'siteType', 'locationLabel', 'capacityKw',
+          'status', 'inverterModel', 'inverterSerial', 'batteryModel',
+          'batteryCapacityKwh', 'panelCount', 'isDemo', 'createdAt', 'updatedAt'
+        ])
+        && data.id == assetId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 140
+        && data.siteType in ['residential', 'commercial', 'microgrid']
+        && data.locationLabel is string && data.locationLabel.size() >= 1 && data.locationLabel.size() <= 140
+        && data.capacityKw is number && data.capacityKw >= 0 && data.capacityKw <= 100000
+        && data.status in ['nominal', 'warning', 'fault', 'offline']
+        && data.inverterModel is string && data.inverterModel.size() >= 1 && data.inverterModel.size() <= 120
+        && data.inverterSerial is string && data.inverterSerial.size() >= 1 && data.inverterSerial.size() <= 80
+        && (!('batteryModel' in data) || (data.batteryModel is string && data.batteryModel.size() <= 120))
+        && (!('batteryCapacityKwh' in data) || (data.batteryCapacityKwh is number && data.batteryCapacityKwh >= 0 && data.batteryCapacityKwh <= 100000))
+        && data.panelCount is number && data.panelCount >= 0 && data.panelCount <= 100000
+        && data.isDemo is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isSupervisor() {
+      return isVerifiedUser()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supervisor';
+    }
+
+    function isValidDiagnosticCase(data, caseId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'assetId', 'componentId', 'componentType', 'title',
+          'safetyHazardDetected', 'stopWork', 'priority', 'status',
+          'inferenceSource', 'assessmentSummary', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'assetId', 'componentId', 'componentType', 'title',
+          'faultCode', 'readingsSummary', 'safetyHazardDetected', 'stopWork',
+          'priority', 'status', 'inferenceSource', 'assessmentSummary',
+          'reviewStatus', 'reviewNote', 'createdAt', 'updatedAt'
+        ])
+        && data.id == caseId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && isValidId(data.assetId)
+        && isValidId(data.componentId)
+        && data.componentType in ['solar_panel', 'inverter', 'battery', 'connection', 'grid_meter', 'other']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && (!('faultCode' in data) || (data.faultCode is string && data.faultCode.size() <= 40))
+        && (!('readingsSummary' in data) || (data.readingsSummary is string && data.readingsSummary.size() <= 500))
+        && data.safetyHazardDetected is bool
+        && data.stopWork is bool
+        && data.priority in ['critical', 'high', 'medium', 'low']
+        && data.status in ['open', 'investigating', 'safety_blocked', 'resolved']
+        && data.inferenceSource in ['on_device', 'in_cloud', 'demo_rules', 'unavailable']
+        && data.assessmentSummary is string && data.assessmentSummary.size() >= 1 && data.assessmentSummary.size() <= 2000
+        && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 600))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkOrder(data, workOrderId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'caseId', 'assetId', 'componentId', 'title',
+          'status', 'priority', 'safetyCleared', 'completedSteps', 'totalSteps',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'caseId', 'assetId', 'componentId', 'title',
+          'status', 'priority', 'safetyCleared', 'technicianNotes',
+          'completedSteps', 'totalSteps', 'reviewStatus', 'reviewNote',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id == workOrderId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && isValidId(data.caseId)
+        && isValidId(data.assetId)
+        && isValidId(data.componentId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.status in ['not_started', 'in_progress', 'completed', 'blocked', 'escalated']
+        && data.priority in ['critical', 'high', 'medium', 'low']
+        && data.safetyCleared is bool
+        && (!('technicianNotes' in data) || (data.technicianNotes is string && data.technicianNotes.size() <= 2000))
+        && data.completedSteps is number && data.completedSteps >= 0 && data.completedSteps <= 100
+        && data.totalSteps is number && data.totalSteps >= 1 && data.totalSteps <= 100
+        && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
+        && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 600))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEvidenceRecord(data, evidenceId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'caseId', 'assetId', 'componentId',
+          'evidenceType', 'originKind', 'caption', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'caseId', 'assetId', 'componentId',
+          'evidenceType', 'originKind', 'caption', 'note', 'createdAt'
+        ])
+        && data.id == evidenceId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && isValidId(data.caseId)
+        && isValidId(data.assetId)
+        && isValidId(data.componentId)
+        && data.evidenceType in [
+          'before_photo', 'after_photo', 'condition_photo',
+          'observed_reading', 'inspection_note', 'repair_note', 'completion_evidence'
+        ]
+        && data.originKind in ['original_evidence', 'simulated_demo_evidence', 'ai_explanatory_text']
+        && data.caption is string && data.caption.size() >= 1 && data.caption.size() <= 180
+        && (!('note' in data) || (data.note is string && data.note.size() <= 1200))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidServiceReport(data, reportId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'caseId', 'assetId', 'reportCode',
+          'title', 'status', 'summary', 'isSimulated', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'caseId', 'assetId', 'reportCode',
+          'title', 'status', 'summary', 'isSimulated', 'canonicalHash', 'createdAt'
+        ])
+        && data.id == reportId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && isValidId(data.caseId)
+        && isValidId(data.assetId)
+        && data.reportCode is string && data.reportCode.size() >= 3 && data.reportCode.size() <= 40
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.status in ['completed', 'escalated', 'pending_verification']
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 2000
+        && data.isSimulated is bool
+        && (!('canonicalHash' in data) || (data.canonicalHash is string && data.canonicalHash.size() == 64))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidKnowledgeDoc(data, docId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'title', 'publisher', 'category',
+          'summary', 'verifiedDate', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'title', 'publisher', 'category',
+          'faultCode', 'summary', 'sourceUrl', 'verifiedDate', 'createdAt'
+        ])
+        && data.id == docId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.publisher is string && data.publisher.size() >= 1 && data.publisher.size() <= 120
+        && data.category in ['inverter', 'solar_panel', 'battery', 'grid_connection', 'safety']
+        && (!('faultCode' in data) || (data.faultCode is string && data.faultCode.size() <= 40))
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 2000
+        && (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() <= 300))
+        && data.verifiedDate is string && data.verifiedDate.size() >= 4 && data.verifiedDate.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCopilotThread(data, threadId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'title', 'language', 'messageCount',
+          'lastMessagePreview', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'title', 'language', 'messageCount',
+          'lastMessagePreview', 'createdAt', 'updatedAt'
+        ])
+        && data.id == threadId
+        && isValidId(data.id)
+        && data.ownerId == request.auth.uid
+        && isValidId(data.ownerId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 180
+        && data.language in ['en', 'bn']
+        && data.messageCount is number && data.messageCount >= 0 && data.messageCount <= 500
+        && data.lastMessagePreview is string && data.lastMessagePreview.size() >= 1 && data.lastMessagePreview.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwnerId(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwnerId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().role == 'technician'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwnerId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().role == existing().role
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /assets/{assetId} {
+      allow get: if isValidId(assetId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(assetId)
+        && isVerifiedUser()
+        && isValidAsset(incoming(), assetId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(assetId)
+        && isOwnerId(existing().ownerId)
+        && isValidAsset(incoming(), assetId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'siteType', 'locationLabel', 'capacityKw', 'status',
+          'inverterModel', 'inverterSerial', 'batteryModel', 'batteryCapacityKwh',
+          'panelCount', 'updatedAt'
+        ]);
+      allow delete: if isValidId(assetId) && isOwnerId(existing().ownerId);
+    }
+
+    match /diagnosticCases/{caseId} {
+      allow get: if isValidId(caseId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(caseId)
+        && isVerifiedUser()
+        && isValidDiagnosticCase(incoming(), caseId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/assets/$(incoming().assetId))
+        && get(/databases/$(database)/documents/assets/$(incoming().assetId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(caseId)
+        && isOwnerId(existing().ownerId)
+        && existing().status != 'resolved'
+        && isValidDiagnosticCase(incoming(), caseId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().assetId == existing().assetId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'priority', 'assessmentSummary', 'reviewStatus', 'reviewNote', 'updatedAt'
+        ])
+        && (!('reviewStatus' in incoming()) || incoming().reviewStatus in ['draft', 'pending_review'] || isSupervisor());
+      allow delete: if isValidId(caseId) && isOwnerId(existing().ownerId);
+    }
+
+    match /workOrders/{workOrderId} {
+      allow get: if isValidId(workOrderId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(workOrderId)
+        && isVerifiedUser()
+        && isValidWorkOrder(incoming(), workOrderId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId))
+        && get(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId)).data.ownerId == request.auth.uid
+        && exists(/databases/$(database)/documents/assets/$(incoming().assetId))
+        && get(/databases/$(database)/documents/assets/$(incoming().assetId)).data.ownerId == request.auth.uid;
+      allow update: if isValidId(workOrderId)
+        && isOwnerId(existing().ownerId)
+        && existing().status != 'completed'
+        && isValidWorkOrder(incoming(), workOrderId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().caseId == existing().caseId
+        && incoming().assetId == existing().assetId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'priority', 'safetyCleared', 'technicianNotes', 'completedSteps', 'reviewStatus', 'reviewNote', 'updatedAt'
+        ])
+        && (!('reviewStatus' in incoming()) || incoming().reviewStatus in ['draft', 'pending_review'] || isSupervisor());
+      allow delete: if isValidId(workOrderId) && isOwnerId(existing().ownerId);
+    }
+
+    match /evidenceRecords/{evidenceId} {
+      allow get: if isValidId(evidenceId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(evidenceId)
+        && isVerifiedUser()
+        && isValidEvidenceRecord(incoming(), evidenceId)
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId))
+        && get(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId)).data.ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(evidenceId) && isOwnerId(existing().ownerId);
+    }
+
+    match /serviceReports/{reportId} {
+      allow get: if isValidId(reportId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(reportId)
+        && isVerifiedUser()
+        && isValidServiceReport(incoming(), reportId)
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId))
+        && get(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId)).data.ownerId == request.auth.uid;
+      allow update: if false;
+      allow delete: if isValidId(reportId) && isOwnerId(existing().ownerId);
+    }
+
+    match /knowledgeDocs/{docId} {
+      allow get: if isValidId(docId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(docId)
+        && isVerifiedUser()
+        && isValidKnowledgeDoc(incoming(), docId)
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(docId) && isOwnerId(existing().ownerId);
+    }
+
+    match /copilotThreads/{threadId} {
+      allow get: if isValidId(threadId) && isOwnerId(existing().ownerId);
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(threadId)
+        && isVerifiedUser()
+        && isValidCopilotThread(incoming(), threadId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(threadId)
+        && isOwnerId(existing().ownerId)
+        && isValidCopilotThread(incoming(), threadId)
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'language', 'messageCount', 'lastMessagePreview', 'updatedAt'
+        ]);
+      allow delete: if isValidId(threadId) && isOwnerId(existing().ownerId);
+    }
+  }
+}
