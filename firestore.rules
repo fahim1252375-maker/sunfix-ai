@@ -138,6 +138,8 @@ service cloud.firestore {
         && (!('technicianNotes' in data) || (data.technicianNotes is string && data.technicianNotes.size() <= 2000))
         && data.completedSteps is number && data.completedSteps >= 0 && data.completedSteps <= 100
         && data.totalSteps is number && data.totalSteps >= 1 && data.totalSteps <= 100
+        // A client cannot mark a work order completed unless safety is cleared and every step is complete.
+        && (data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps))
         && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
         && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 600))
         && data.createdAt is timestamp
