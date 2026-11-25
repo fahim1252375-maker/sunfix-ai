@@ -129,9 +129,10 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
   await page.goto('/');
 
   const result = await page.evaluate(async () => {
-    const { auth } = await import('/src/services/firebase.ts');
+    const firebaseModulePath = '/src/services/firebase.ts';
+    const { auth } = await import(/* @vite-ignore */ firebaseModulePath);
     const { createUserWithEmailAndPassword } = await import('firebase/auth');
-    const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+    const apiKey = 'demo-api-key';
     const email = `playwright-${crypto.randomUUID()}@example.test`;
     const password = 'Emulator-Test-Password-123!';
 
@@ -156,7 +157,7 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
     }
 
     const { syncQueueItemToFirestore, fetchUserCloudRecordCounts } =
-      await import('/src/services/firestoreSync.ts');
+      await import(/* @vite-ignore */ '/src/services/firestoreSync.ts');
     const timestamp = new Date().toISOString();
     const item = {
       id: `queue-${crypto.randomUUID()}`,
@@ -206,7 +207,8 @@ test('live Firebase AI Logic returns a validated cloud result when explicitly en
 
   await page.goto('/');
   const result = await page.evaluate(async () => {
-    const { runHybridDiagnosis } = await import('/src/services/hybridAI.ts');
+    const hybridAiModulePath = '/src/services/hybridAI.ts';
+    const { runHybridDiagnosis } = await import(/* @vite-ignore */ hybridAiModulePath);
     return runHybridDiagnosis({
       caseId: 'live-ai-smoke',
       assetName: 'Live AI integration test site',
