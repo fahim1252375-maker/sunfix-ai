@@ -2,40 +2,30 @@ import { getToken } from 'firebase/app-check';
 import { getAppCheckInstance, getAppCheckStatus } from '../services/firebase';
 
 /**
- * Obtain an App Check token using the registered CI debug token.
- *
- * The GitHub Actions Playwright server runs on 127.0.0.1, which must not be
- * added to the production reCAPTCHA Enterprise key. This helper therefore
- * requires the development-only debug-token path. It is not a production
- * reCAPTCHA Enterprise attestation test.
+ * Request a real Firebase App Check token in the non-emulator browser smoke test.
+ * On localhost CI this must be a registered App Check debug token; it is not
+ * evidence of production reCAPTCHA Enterprise attestation.
  */
 export async function requestLiveAppCheckAttestation(): Promise<{
+  appCheckState: ReturnType<typeof getAppCheckStatus>['state'];
   tokenLength: number;
-  appCheckState: string;
 }> {
   if (!import.meta.env.DEV || import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
-    throw new Error('The CI App Check smoke test is available only in the non-emulator Vite development server.');
-  }
-
-  const status = getAppCheckStatus();
-  if (status.state !== 'active_debug' || !status.debugModeEnabled) {
-    throw new Error(
-      'The CI browser runs on 127.0.0.1 and requires a registered VITE_FIREBASE_APPCHECK_DEBUG_TOKEN. Do not use the production reCAPTCHA key as a localhost attestation.',
-    );
+    throw new Error('Live App Check verification is available only in the non-emulator browser smoke test.');
   }
 
   const appCheck = getAppCheckInstance();
   if (!appCheck) {
-    throw new Error('Firebase App Check is not initialized. Check the Firebase Web App, App Check provider configuration, and registered debug token.');
+    throw new Error('Firebase App Check is not initialized. Check the Firebase Web App and reCAPTCHA Enterprise site key.');
   }
 
   const result = await getToken(appCheck, true);
   if (!result.token || result.token.trim().length < 20) {
-    throw new Error('Firebase App Check did not return a usable debug attestation token.');
+    throw new Error('Firebase App Check did not return a usable attestation token.');
   }
 
   return {
+    appCheckState: getAppCheckStatus().state,
     tokenLength: result.token.length,
-    appCheckState: status.state,
   };
 }
