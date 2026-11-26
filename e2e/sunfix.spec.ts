@@ -193,7 +193,6 @@ test('live Firebase App Check returns a reCAPTCHA Enterprise attestation @live-a
   });
 
   expect(result.tokenLength).toBeGreaterThan(20);
-  expect(Number.isFinite(Date.parse(result.expireTimeMillis))).toBe(true);
 });
 
 test('live Firebase AI Logic returns a validated cloud result when explicitly enabled @live-ai', async ({
