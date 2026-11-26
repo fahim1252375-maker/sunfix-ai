@@ -28,7 +28,7 @@ Also set:
 
 | Variable | Requirement |
 | --- | --- |
-| `VITE_FIRESTORE_DATABASE_ID` | Database ID; use `(default)` for the default Firestore database |
+| `VITE_FIRESTORE_DATABASE_ID` | Exact Cloud Firestore database ID. Use `(default)` only for the default database or the isolated local emulator. |
 | `VITE_FIREBASE_AI_MODEL` | Optional model override; the current app default is `gemini-3.5-flash-lite` |
 | `VITE_RECAPTCHA_SITE_KEY` | The reCAPTCHA Enterprise site key registered for the app's App Check provider |
 | `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Development-only App Check debug token; never use in production |
@@ -37,7 +37,7 @@ Also set:
 | `VITE_FIREBASE_FIRESTORE_EMULATOR_HOST` | Emulator-only; defaults to `127.0.0.1` |
 | `VITE_FIREBASE_FIRESTORE_EMULATOR_PORT` | Emulator-only; defaults to `8080` |
 
-Create `.env.local` in the repository root on your own machine and fill the values there. Do not commit it. Firebase Web App configuration is client configuration, not an Admin credential; nevertheless, keep local environment files out of Git. Never put a Firebase service-account JSON, Admin SDK private key, or private Gemini API key in the browser app.
+For the Firebase project `avid-grin-p01dl`, the Firebase Console currently shows the existing Firestore database ID `ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33`. Use that exact value for live Firebase configuration; do not create a second database. Keep `(default)` for the isolated local emulator unless you have intentionally configured a named emulator database. Create `.env.local` in the repository root on your own machine and fill the values there. Do not commit it. Firebase Web App configuration is client configuration, not an Admin credential; nevertheless, keep local environment files out of Git. Never put a Firebase service-account JSON, Admin SDK private key, or private Gemini API key in the browser app.
 
 `GEMINI_API_KEY` is deliberately blank and unused by the browser app. Never add a Gemini secret to a `VITE_*` variable.
 
