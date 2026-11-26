@@ -8,7 +8,6 @@ import { getAppCheckInstance } from '../services/firebase';
  */
 export async function requestLiveAppCheckAttestation(): Promise<{
   tokenLength: number;
-  expireTimeMillis: string;
 }> {
   if (!import.meta.env.DEV || import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
     throw new Error('Live App Check verification is available only in the non-emulator browser smoke test.');
@@ -26,6 +25,5 @@ export async function requestLiveAppCheckAttestation(): Promise<{
 
   return {
     tokenLength: result.token.length,
-    expireTimeMillis: result.expireTimeMillis,
   };
 }
