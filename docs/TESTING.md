@@ -7,7 +7,7 @@
 - Desktop and mobile browser QA, WCAG axe checks, simulated offline mode, and authenticated Auth/Firestore emulator sync: `bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`
 - Production bundle: `bun run build`
 
-The browser test suite starts the Vite development server and uses emulator-only Firebase configuration. No production project credentials are used by the default CI run. The Auth emulator E2E test creates a disposable test user, verifies its email through the Auth Emulator OOB-code flow, force-refreshes its ID token to obtain the `email_verified` claim, calls the same Firestore sync service used by the app, and verifies the owner-scoped cloud record count. The browser suite separately checks that an offline workspace remains available in IndexedDB after the browser reconnects.
+The browser test suite starts the Vite development server and uses emulator-only Firebase configuration. No production project credentials are used by the default CI run. The Auth emulator E2E test creates a disposable test user, verifies its email through the Auth Emulator OOB-code flow, and force-refreshes its ID token to obtain the `email_verified` claim. The offline-to-online browser test then mounts the real `SunFixProvider`, queues a new asset while the browser is offline, verifies the account-scoped IndexedDB workspace and pending queue, reconnects the browser, waits for the provider's automatic `processSyncQueue` effect, and verifies both the persisted `synced` queue state and the owner-scoped Firestore record count. This exercises the app context and reconnect path rather than directly calling only the lower-level sync service.
 
 ## Live Firebase App Check and AI Logic checks
 
