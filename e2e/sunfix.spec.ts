@@ -125,54 +125,68 @@ test('mobile navigation opens, changes route and closes', async ({ page }) => {
   expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(documentMetrics.viewportWidth + 1);
 });
 
-test('authenticated Firebase emulator sync writes an owner-scoped asset', async ({ page }) => {
+test('authenticated offline queue persists locally and auto-syncs after reconnect', async ({ page }) => {
   await page.goto('/');
 
-  const result = await page.evaluate(async () => {
+  const userId = await page.evaluate(async () => {
     const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
     const { createVerifiedEmulatorUser } =
       await import(/* @vite-ignore */ emulatorTestModulePath);
     const authenticatedUser = await createVerifiedEmulatorUser();
 
-    const firestoreSyncModulePath = '/src/services/firestoreSync.ts';
-    const { syncQueueItemToFirestore, fetchUserCloudRecordCounts } =
-      await import(/* @vite-ignore */ firestoreSyncModulePath);
-    const timestamp = new Date().toISOString();
-    const item = {
-      id: `queue-${crypto.randomUUID()}`,
-      entityType: 'asset' as const,
-      entityId: `asset-${crypto.randomUUID()}`,
-      operation: 'upsert' as const,
-      label: 'Playwright emulator asset',
-      payload: {
-        name: 'Playwright emulator asset',
-        siteType: 'commercial',
-        locationLabel: 'Automated test environment',
-        capacityKw: 12,
-        status: 'nominal',
-        inverterModel: 'Test inverter',
-        inverterSerial: 'PW-INV-001',
-        panelCount: 30,
-        isDemo: false,
-      },
-      status: 'pending' as const,
-      attempts: 0,
-      updatedAt: timestamp,
-    };
+    const harnessModulePath = '/src/testing/SunFixSyncHarness.tsx';
+    const { mountSunFixSyncHarness } =
+      await import(/* @vite-ignore */ harnessModulePath);
+    mountSunFixSyncHarness();
 
-    const sync = await syncQueueItemToFirestore(item, authenticatedUser.uid);
-    const counts = await fetchUserCloudRecordCounts(authenticatedUser.uid);
-    return {
-      emailVerified: authenticatedUser.emailVerified,
-      uid: authenticatedUser.uid,
-      sync,
-      counts,
-    };
+    return authenticatedUser.uid;
   });
 
-  expect(result.emailVerified).toBe(true);
-  expect(result.sync.status).toBe('synced');
-  expect(result.counts.assets).toBe(1);
+  await expect(page.getByTestId('auth-ready')).toHaveText('ready');
+  await expect(page.getByTestId('sync-user-id')).toHaveText(userId);
+
+  await page.context().setOffline(true);
+  await expect(page.getByTestId('global-sync-status')).toHaveText('offline');
+
+  await page.getByRole('button', { name: 'Queue asset while offline' }).click();
+  const assetId = `playwright-offline-${userId}`;
+
+  await expect(page.getByTestId('sync-queue-status')).toContainText(`${assetId}:pending`);
+  await expect(page.getByTestId('global-sync-status')).toHaveText('offline');
+
+  const localState = await page.evaluate(async (uid) => {
+    const offlineStoreModulePath = '/src/services/offlineStore.ts';
+    const { getStorageScopeId, loadSyncQueueFromIDB, loadWorkspaceFromIDB } =
+      await import(/* @vite-ignore */ offlineStoreModulePath);
+    const scope = getStorageScopeId(uid);
+    const [queue, workspace] = await Promise.all([
+      loadSyncQueueFromIDB(scope),
+      loadWorkspaceFromIDB(scope),
+    ]);
+    return {
+      queued: queue.some((item) => item.entityId === `playwright-offline-${uid}` && item.status === 'pending'),
+      workspaceHasAsset: Boolean(workspace?.assets.some((asset) => asset.id === `playwright-offline-${uid}`)),
+    };
+  }, userId);
+
+  expect(localState.queued).toBe(true);
+  expect(localState.workspaceHasAsset).toBe(true);
+
+  await page.context().setOffline(false);
+  await expect(page.getByTestId('sync-queue-status')).toContainText(`${assetId}:synced`, {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId('sync-cloud-assets')).toHaveText('1', { timeout: 15_000 });
+
+  const persistedQueue = await page.evaluate(async (uid) => {
+    const offlineStoreModulePath = '/src/services/offlineStore.ts';
+    const { getStorageScopeId, loadSyncQueueFromIDB } =
+      await import(/* @vite-ignore */ offlineStoreModulePath);
+    const queue = await loadSyncQueueFromIDB(getStorageScopeId(uid));
+    return queue.find((item) => item.entityId === `playwright-offline-${uid}`)?.status;
+  }, userId);
+
+  expect(persistedQueue).toBe('synced');
 });
 
 test('live Firebase App Check returns a reCAPTCHA Enterprise attestation @live-app-check', async ({
