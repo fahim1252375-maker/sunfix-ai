@@ -126,18 +126,13 @@ test('mobile navigation opens, changes route and closes', async ({ page }) => {
 });
 
 test('authenticated offline queue persists locally and auto-syncs after reconnect', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/e2e/sync-harness.html');
 
   const userId = await page.evaluate(async () => {
     const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
     const { createVerifiedEmulatorUser } =
       await import(/* @vite-ignore */ emulatorTestModulePath);
     const authenticatedUser = await createVerifiedEmulatorUser();
-
-    const harnessModulePath = '/src/testing/SunFixSyncHarness.tsx';
-    const { mountSunFixSyncHarness } =
-      await import(/* @vite-ignore */ harnessModulePath);
-    mountSunFixSyncHarness();
 
     return authenticatedUser.uid;
   });
