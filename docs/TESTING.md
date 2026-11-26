@@ -36,6 +36,19 @@ SUNFIX_RUN_LIVE_AI_SMOKE=true bun run test:e2e --grep @live
 
 Export the real Firebase Web App variables, the registered debug token, and the matching App Check configuration in the local shell first. Do not place a private Gemini key in a `VITE_*` variable or commit any environment file.
 
+## Live Firestore CRUD and owner-isolation check
+
+The `@live-firestore` Playwright test uses the Firebase client SDK from a browser against project `avid-grin-p01dl` and the named database `ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33`. It signs in two distinct, pre-created, email-verified test accounts, creates a uniquely named disposable asset, confirms its owner can read it, confirms the second account receives `permission-denied`, and deletes and verifies cleanup of only that generated asset. Playwright tracing, screenshots, and video are disabled for this test so credentials are not captured in CI artifacts.
+
+The test is opt-in. Set the repository Actions variable `SUNFIX_RUN_LIVE_FIRESTORE_TEST=true` and add these protected Actions secrets before running it:
+
+- `SUNFIX_LIVE_TEST_EMAIL`
+- `SUNFIX_LIVE_TEST_PASSWORD`
+- `SUNFIX_LIVE_TEST_SECOND_EMAIL`
+- `SUNFIX_LIVE_TEST_SECOND_PASSWORD`
+
+The accounts must be distinct and email-verified. The Firebase **Email/Password** provider must be enabled for these accounts; do not enable or change a production provider solely for this smoke test without project-owner review. Never paste passwords into chat or commit them. The test stops unless the configured project and database exactly match the approved target. Its default gate is off; emulator CI never receives these credentials.
+
 ## Manual production Google Auth and App Check checklist
 
 1. Enable Google as a provider in the intended Firebase Authentication project.
@@ -47,3 +60,5 @@ Export the real Firebase Web App variables, the registered debug token, and the 
 7. Test offline edits, reconnect, pending queue drain, conflict handling, and account switching with real accounts.
 
 The emulator suite verifies owner-scoped Firestore rules and an authenticated, email-verified test principal writing through the actual Firebase SDK sync service. It does not replace real Google OAuth, live Firestore verification, or production reCAPTCHA Enterprise attestation.
+
+At the 2026-11-27 handoff check, the live Firestore test was not configured: the four test-account secrets and `SUNFIX_RUN_LIVE_FIRESTORE_TEST` variable were absent. The live App Check/AI test was also not enabled because the App Check debug token/site key and Firebase AI Logic setup were unavailable.

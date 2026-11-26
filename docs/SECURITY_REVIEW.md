@@ -1,11 +1,11 @@
 # Dependency security review
 
-**Review date:** 2026-11-26  
+**Review date:** 2026-11-27
 **Scope:** Current npm audit metadata, the Bun-resolved Firebase 13.4.0 and Workbox dependency trees, and the production dependency graph.
 
 ## Confirmed findings
 
-The current audit reported **5 High, 4 Moderate, 0 Critical** findings across the full dependency graph and **4 High, 4 Moderate, 0 Critical** with `--omit=dev`. The production findings include the Firebase / gRPC chain and the PWA / Workbox chain below. The additional full-graph High finding is in the development-only `@firebase/rules-unit-testing@4.0.1` package.
+The prior npm audit report dated 2026-11-26 counted **5 High, 4 Moderate, 0 Critical** findings across its full graph and **4 High, 4 Moderate, 0 Critical** with `--omit=dev`. The current Bun audit counts are recorded in the 2026-11-27 recheck below; do not use the earlier npm counts as the current result.
 
 The affected installed package chain was:
 
@@ -80,3 +80,17 @@ The Bun lockfile was regenerated from the existing manifest so its already-decla
 ## Install-script policy
 
 The isolated Bun trial used `bun install --ignore-scripts` and passed the project checks. CI uses the same setting. Dependencies whose install scripts were blocked remain untrusted until individually reviewed; they are not bulk-approved by this change.
+
+## Recheck on 2026-11-27
+
+Using the committed Bun dependency graph (`bun audit --production` and `bun audit`), both current audits report the same four advisories: **1 High, 2 Moderate, 1 Low, 0 Critical**. Findings are:
+
+- `@grpc/grpc-js@1.9.16`: High GHSA-m9gg-hp2v-232j and Low GHSA-f596-whhp-79r4, pulled through `firebase@13.4.0` → `@firebase/firestore@4.20.0`; Firestore declares `~1.9.0`.
+- `glob@11.1.0`: Moderate GHSA-3g3m-2fjr-6pw4, through Workbox's `^11.0.1` dependency range.
+- `minimatch@10.2.6`: Moderate GHSA-g3hv-75wg-m249, through the same Workbox path. The separate ESLint copy at `11.0.9` is not affected.
+
+`bun audit fix --dry-run` checked 802 packages and fixed **0 of 4** findings because the parent ranges exclude the patched versions. No lockfile changes or out-of-range overrides were applied. Registry metadata checked on this date still reports `firebase@13.4.0` as latest, and its `@firebase/firestore@4.20.0` dependency still declares `@grpc/grpc-js: ~1.9.0`. Upstream [PR #10412](https://github.com/firebase/firebase-js-sdk/pull/10412) was merged on Nov 24 to update Firestore's range to `~1.14.7`, but that change is not in the latest published package checked. `vite-plugin-pwa@2.0.0` and `workbox-build@7.4.1` remain current and still pin `glob` to `^11.0.1`.
+
+The Firebase CLI check reports **no authorized accounts** in this local environment. Firebase Console access remains available, but its AI Logic and App Check setup screens require a Project Owner to enable APIs/configure provider keys. See the task handoff report for live integration status.
+
+**Current status:** dependency remediation remains open. The upstream gRPC fix is merged but unpublished; Workbox's `glob` / `minimatch` ranges also exclude fixed packages. Do not force overrides or declare the project security-clean. Recheck published versions and rerun both Bun audits before production readiness is reconsidered.
