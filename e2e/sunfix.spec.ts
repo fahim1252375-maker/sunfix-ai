@@ -175,6 +175,27 @@ test('authenticated Firebase emulator sync writes an owner-scoped asset', async 
   expect(result.counts.assets).toBe(1);
 });
 
+test('live Firebase App Check returns a reCAPTCHA Enterprise attestation @live-app-check', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Run live App Check smoke once per CI workflow.');
+  test.skip(
+    process.env.SUNFIX_RUN_LIVE_AI_SMOKE !== 'true',
+    'Set SUNFIX_RUN_LIVE_AI_SMOKE=true and provide a real Firebase project and App Check site key.',
+  );
+
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const liveTestModulePath = '/src/testing/firebaseLive.ts';
+    const { requestLiveAppCheckAttestation } =
+      await import(/* @vite-ignore */ liveTestModulePath);
+    return requestLiveAppCheckAttestation();
+  });
+
+  expect(result.tokenLength).toBeGreaterThan(20);
+  expect(Number.isFinite(Date.parse(result.expireTimeMillis))).toBe(true);
+});
+
 test('live Firebase AI Logic returns a validated cloud result when explicitly enabled @live-ai', async ({
   page,
 }, testInfo) => {
