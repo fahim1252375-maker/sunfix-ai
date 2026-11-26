@@ -122,3 +122,35 @@ Before describing the system as operational rather than a prototype:
 3. Repository implementation baseline: [SunFix Field Product Specification](./PRODUCT_SPEC.md), [Architecture](./ARCHITECTURE.md), [Firebase setup](./FIREBASE_SETUP.md) and [Verification & Test Plan](./TEST_PLAN.md).
 
 This document is a product-planning aid. It is not an engineering certification, an electrical safety procedure, a vendor compatibility claim or a market-size estimate.
+
+
+## 7. What makes the 3D twin operational rather than decorative
+
+A vendor-authored Areg AI digital-twin guide (updated June 2026) makes several useful evaluation distinctions. Treat these as product-design hypotheses, not independent proof of Areg's performance:
+
+- **Component identity:** model individual inverters, strings, combiners, batteries and other maintainable components, not only a site-wide 3D mesh.
+- **Physical context:** attach location, wiring/relationship, model/nameplate, warranty and service history to each component.
+- **Data linkage:** associate each component with telemetry, alarms, inspections and evidence records.
+- **Alarm-to-action closure:** an alert should resolve to the affected component and allow a contextual work order to be created against that exact component.
+- **Predictive integrity:** compare measured behavior against an explicitly versioned expected-performance model; flag data gaps and uncertainty instead of inventing fault certainty.
+- **Interoperability:** assess whether a system can ingest different inverter brands and standard industrial protocols. The guide names SunSpec Modbus, DNP3 and IEC 61850 as examples to investigate, not protocols already supported by SunFix.
+- **Cybersecurity/model integrity:** more live device connections increase attack surface; validate source authenticity, authorization, timestamps, data quality and model versioning.
+
+### Suggested SunFix component data contract
+
+Each twin component should have a stable ID and parent/child relationship, component type, manufacturer/model/serial (where available), site position, commissioning and warranty dates, connection topology, current state, last-observed timestamp, data source, quality/staleness flag, active alarm references, evidence references, work-order history and a `simulated` provenance flag.
+
+### Suggested interaction contract
+
+1. Select a component in the 3D twin or accessible 2D list.
+2. Open a component drawer with its identity, topology, last-seen data and data-quality status.
+3. Select a telemetry point or alarm to see its time series, original source and relevant threshold/model version.
+4. Create a diagnostic case that snapshots the supporting evidence references.
+5. Evaluate the deterministic safety gate before a repair work order can proceed.
+6. Carry the component ID, evidence manifest and fault context into the work order and service report.
+7. On completion, append verification evidence and a reviewer/audit event; do not overwrite the original diagnostic observation.
+
+### Additional source
+
+4. [Areg AI — Solar Asset Management Software: Why the Best Platforms Are Built on a Digital Twin](https://areg.ai/blog/solar-asset-management-software-digital-twin/) — vendor-authored buyer guide retrieved 26 November 2026. Useful for component-level twin, SCADA/data integration, alarm-to-work-order closure and vendor evaluation questions. Treat all claims about Areg's own capabilities as marketing claims pending independent verification.
+5. [Areg AI — Solar SCADA Systems](https://areg.ai/blog/solar-scada-systems-how-they-work/) — vendor-authored overview surfaced in Firecrawl search. Useful for a checklist of device classes and the distinction between monitoring/SCADA and technician field execution; not an independent product assessment.
