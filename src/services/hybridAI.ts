@@ -21,6 +21,11 @@ import {
   runDeterministicFallbackAssessment,
 } from '../utils/diagnosticsLogic';
 import { mapInferenceSource } from '../utils/inferenceSource';
+import {
+  initializeDeviceModelWithProgress,
+  runHybridWithCloudFallback,
+  withInferenceTimeout,
+} from '../utils/hybridInference';
 import { firebaseApp, getAppCheckStatus } from './firebase';
 
 function getSafeProviderErrorCode(error: unknown): string | null {
@@ -33,6 +38,7 @@ function getSafeProviderErrorCode(error: unknown): string | null {
 
 export const CLOUD_MODEL_NAME =
   (import.meta.env.VITE_FIREBASE_AI_MODEL as string | undefined)?.trim() || 'gemini-3.5-flash-lite';
+const CLOUD_REQUEST_TIMEOUT_MS = 60_000;
 
 const SYSTEM_INSTRUCTION = `You are SunFix Field's solar photovoltaic diagnostic assistant.
 Strict rules:
@@ -322,12 +328,10 @@ export async function prepareOnDeviceModel(
 
   try {
     const model = getHybridModel();
-    onProgress(5);
-    await model.initializeDeviceModel((progressValue) => {
-      const pct = Math.min(100, Math.max(0, Math.round(progressValue * 100)));
-      onProgress(pct);
-    });
-    onProgress(100);
+    await initializeDeviceModelWithProgress(
+      (onDownloadProgress) => model.initializeDeviceModel(onDownloadProgress),
+      onProgress,
+    );
     return {
       ok: true,
       availability: 'ready',
@@ -524,8 +528,32 @@ Required JSON schema:
   }
 
   try {
-    const model = req.forceCloudOnly ? getCloudOnlyModel() : getHybridModel();
-    const result = await model.generateContent(parts);
+    let result: Awaited<ReturnType<GenerativeModel['generateContent']>>;
+    if (req.forceCloudOnly) {
+      result = await withInferenceTimeout(
+        getCloudOnlyModel().generateContent(parts, { timeout: CLOUD_REQUEST_TIMEOUT_MS }),
+        CLOUD_REQUEST_TIMEOUT_MS,
+      );
+    } else {
+      result = await runHybridWithCloudFallback(
+        () => withInferenceTimeout(
+          getHybridModel().generateContent(parts, { timeout: CLOUD_REQUEST_TIMEOUT_MS }),
+          CLOUD_REQUEST_TIMEOUT_MS,
+        ),
+        () => withInferenceTimeout(
+          getCloudOnlyModel().generateContent(parts, { timeout: CLOUD_REQUEST_TIMEOUT_MS }),
+          CLOUD_REQUEST_TIMEOUT_MS,
+        ),
+        (hybridError) => {
+          // Firebase AI Logic's PREFER_ON_DEVICE mode selects the local runtime
+          // based on availability, but does not retry cloud if that local call
+          // later rejects. Make the cloud retry explicit and keep its provenance.
+          console.warn('[SunFix AI] hybrid request failed; trying cloud fallback', {
+            errorCode: getSafeProviderErrorCode(hybridError),
+          });
+        },
+      );
+    }
     const rawText = result.response.text();
     const actualSource = mapInferenceSource(result.response.inferenceSource, req.forceCloudOnly ? 'only_in_cloud' : 'prefer_on_device');
     const validIds = req.knowledgeLibrary.map((k) => k.id);
@@ -536,6 +564,13 @@ Required JSON schema:
     }
 
     const counts = countEvidence(parsed.data);
+    console.info('[SunFix AI] inference completed', {
+      modeRequested: req.forceCloudOnly ? 'only_in_cloud' : 'prefer_on_device',
+      inferenceSource: actualSource,
+      latencyMs: Math.round(performance.now() - startedAt),
+      validationPassed: true,
+      usedFallbackRules: false,
+    });
     return {
       assessment: parsed.data,
       usedFallbackRules: false,
@@ -566,6 +601,11 @@ Required JSON schema:
       rawError.includes('api-not-enabled') ||
       rawError.includes('Permission denied');
     const providerErrorCode = getSafeProviderErrorCode(err);
+    console.warn('[SunFix AI] inference unavailable; using deterministic rules', {
+      modeRequested: req.forceCloudOnly ? 'only_in_cloud' : 'prefer_on_device',
+      errorCode: providerErrorCode,
+      errorKind: isPermissionOrApiDisabled ? 'configuration' : 'provider_or_validation',
+    });
     const cleanDetail = isPermissionOrApiDisabled
       ? 'Firebase AI Logic returned an access error. Enable Firebase AI Logic and configure App Check in Firebase Console.'
       : providerErrorCode

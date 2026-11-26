@@ -1,6 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+async function enterDiagnostics(page: import('@playwright/test').Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Enter Demo Workspace' }).click();
+  const diagnosticsLink = page.getByRole('button', { name: 'AI Diagnostics' });
+  if (!(await diagnosticsLink.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+  }
+  await diagnosticsLink.click();
+}
+
 test('landing page renders at desktop and mobile widths without horizontal overflow', async ({
   page,
 }, testInfo) => {
@@ -133,6 +143,60 @@ test('mobile navigation opens, changes route and closes', async ({ page }) => {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(documentMetrics.viewportWidth + 1);
+});
+
+test('safety stop-work hold blocks generative diagnosis and creates an escalation work order', async ({ page }) => {
+  await enterDiagnostics(page);
+
+  for (let step = 1; step < 7; step += 1) {
+    await page.getByRole('button', { name: 'Next Step' }).click();
+  }
+
+  await page.getByLabel('Visible smoke').check();
+  await expect(page.getByRole('alert')).toContainText('IMMEDIATE STOP-WORK SAFETY HOLD ACTIVE');
+  await page.getByRole('button', { name: 'Next Step' }).click();
+  await expect(page.getByText('STOP-WORK HOLD', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Submit Hybrid Diagnosis' }).click();
+
+  await expect(page.getByRole('alert')).toContainText('STOP-WORK SAFETY HOLD — ESCALATION REQUIRED');
+  await expect(page.getByText('DEMO RULES', { exact: true }).first()).toBeVisible();
+  await page.getByRole('button', { name: 'Open Safety Escalation Work Order' }).click();
+  await expect(page.getByRole('heading', { name: /Safety-gated repair operations/ })).toBeVisible();
+  await expect(page.getByText(/generated under an active Stop-Work Hold/)).toBeVisible();
+});
+
+test('offline diagnosis is explicitly labelled as deterministic rules and creates a repair work order', async ({ page }) => {
+  await enterDiagnostics(page);
+
+  for (let step = 1; step < 8; step += 1) {
+    await page.getByRole('button', { name: 'Next Step' }).click();
+  }
+  await page.context().setOffline(true);
+  await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
+  await page.getByRole('button', { name: 'Submit Hybrid Diagnosis' }).click();
+
+  await expect(page.getByText('DEMO RULES', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Device is offline and on-device generative model is not initialized/)).toBeVisible();
+  await page.getByRole('button', { name: 'Accept & Create Safety-Reviewed Work Order' }).click();
+  await expect(page.getByRole('heading', { name: /Safety-gated repair operations/ })).toBeVisible();
+  await expect(page.getByText('Work Order', { exact: false }).first()).toBeVisible();
+  await page.context().setOffline(false);
+});
+
+test('failed Firebase AI Logic requests show deterministic fallback instead of a model success', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'Run provider failure smoke once per workflow.');
+  await enterDiagnostics(page);
+
+  for (let step = 1; step < 8; step += 1) {
+    await page.getByRole('button', { name: 'Next Step' }).click();
+  }
+  await page.route('https://firebasevertexai.googleapis.com/**', (route) => route.abort('failed'));
+  await page.getByRole('button', { name: 'Force Cloud Gemini Analysis' }).click();
+
+  await expect(page.getByText('DEMO RULES', { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Firebase AI Logic request failed|request could not complete|not yet enabled or permitted|fell back to deterministic rules/)).toBeVisible();
+  await expect(page.getByText('CLOUD', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('LOCAL', { exact: true })).toHaveCount(0);
 });
 
 test('authenticated offline queue persists locally and auto-syncs after reconnect', async ({ page }) => {

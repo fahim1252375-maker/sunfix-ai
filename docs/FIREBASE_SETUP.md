@@ -11,6 +11,28 @@ Firebase is optional for the local demo experience. Authentication and cloud syn
 
 Browser Firebase configuration is public client configuration. Do not place service-account JSON, Admin SDK private keys, or other server secrets in the Vite app.
 
+The application reads these exact variables (all names are present in `.env.example`):
+
+| Variable | Requirement |
+| --- | --- |
+| `VITE_FIREBASE_API_KEY` | Required Web App config |
+| `VITE_FIREBASE_AUTH_DOMAIN` | Required for Google sign-in |
+| `VITE_FIREBASE_PROJECT_ID` | Required |
+| `VITE_FIREBASE_APP_ID` | Required |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Web App config value |
+| `VITE_FIREBASE_STORAGE_BUCKET` | Web App config value |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Optional; only if Analytics is configured |
+| `VITE_FIRESTORE_DATABASE_ID` | Database ID; `(default)` when using the default database |
+| `VITE_FIREBASE_AI_MODEL` | Optional override; defaults to `gemini-3.5-flash-lite` |
+| `VITE_RECAPTCHA_SITE_KEY` | Required when App Check uses reCAPTCHA Enterprise |
+| `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN` | Local development only; register the generated token in App Check |
+| `VITE_USE_FIREBASE_EMULATORS` | Local development only; leave `false` in production |
+| `VITE_FIREBASE_AUTH_EMULATOR_URL` | Emulator-only; defaults to `http://127.0.0.1:9099` |
+| `VITE_FIREBASE_FIRESTORE_EMULATOR_HOST` | Emulator-only; defaults to `127.0.0.1` |
+| `VITE_FIREBASE_FIRESTORE_EMULATOR_PORT` | Emulator-only; defaults to `8080` |
+
+`GEMINI_API_KEY` is deliberately blank and unused by the browser app. Never add a Gemini secret to a `VITE_*` variable.
+
 ## 2. Enable Authentication
 
 1. In Firebase Console, open Authentication -> Sign-in method.
@@ -36,11 +58,22 @@ The app uses owner-scoped documents. A client-side role or hidden UI control is 
 
 ## 5. AI configuration
 
-The browser must not receive a private Gemini API key. Do not use a VITE_GEMINI_API_KEY variable. Prefer Firebase AI Logic with the appropriate Firebase project configuration, or call a server-side endpoint that stores provider credentials in a secret manager.
+1. In Firebase Console, select **AI Services -> AI Logic -> Get started** for the same Firebase project as the Web App.
+2. Choose and enable the Gemini provider. The Gemini Developer API is the simplest setup; Vertex AI may require a billing account and additional project configuration.
+3. Confirm the desired model is enabled for that provider. The app defaults to `gemini-3.5-flash-lite`; override it with `VITE_FIREBASE_AI_MODEL` only with a model supported by the selected provider.
+4. Complete the setup workflow's Firebase AI Logic API and App Check steps. The app sends requests through `firebase/ai` and does not use a browser-held Gemini key.
+
+The browser must not receive a private Gemini API key. Do not use a `VITE_GEMINI_API_KEY` variable. For a different provider or private credentials, use a server-side endpoint that stores secrets in a secret manager.
+
+## 6. Local on-device model requirements
+
+Firebase AI Logic's web on-device adapter currently requires desktop Chrome 139 or later and the built-in Prompt API. In Chrome, open `chrome://flags/#prompt-api-for-gemini-nano-multimodal-input`, enable it, restart Chrome, and use **Prepare On-device AI** to download/initialize the model after a user click. Availability depends on Chrome's supported device requirements and model download; the app must report `CLOUD`, `LOCAL`, or `DEMO RULES` from the actual response/fallback path.
+
+Do not claim a local inference demo until a successful response records `on_device` from Firebase AI Logic. Desktop Chrome without the required API/model can still use configured cloud inference, or deterministic rules when Firebase AI Logic is unavailable.
 
 The deterministic demo fallback is not a live AI service and must be labelled accordingly.
 
-## 6. Local Emulator Suite
+## 7. Local Emulator Suite
 
 1. Install dependencies with `bun install`.
 2. Set `VITE_USE_FIREBASE_EMULATORS=true` in `.env.local` only for local development.
@@ -51,7 +84,7 @@ The deterministic demo fallback is not a live AI service and must be labelled ac
 
 The app only connects to emulators when both Vite development mode and `VITE_USE_FIREBASE_EMULATORS=true` are active. Production builds ignore this switch.
 
-## 7. Before production
+## 8. Before production
 
 - Test sign-in, sign-out, owner isolation, and revoked-user access with the real project.
 - Run Firestore rules tests against the Firebase Emulator Suite.

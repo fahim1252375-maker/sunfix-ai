@@ -37,6 +37,10 @@ Sources: [upstream PR #10412](https://github.com/firebase/firebase-js-sdk/pull/1
 
 **Decision:** do not force `@grpc/grpc-js@1.14.x` into the currently published Firestore 4.20.0 package. The upstream PR includes Firestore-side termination-handling changes specifically to preserve behavior with the newer gRPC release. Applying only the dependency override before that patched Firestore package is published would omit those companion code changes and would not be a properly validated remediation.
 
+The dependency graph was rechecked from the installed Bun lock on 2026-11-26 with `bun audit --json` and `bun audit --production --json`. Both report the same distinct advisories for the production-reachable packages: **1 High, 2 Moderate, and 1 Low advisory**. The npm audit report above counts repeated affected package paths separately, which accounts for its larger 4/5 High and 4 Moderate totals. `bun pm why` confirms `@grpc/grpc-js@1.9.16` under Firestore and `glob@11.1.0` / `minimatch@10.2.6` under Workbox; a separate `minimatch@11.0.9` copy used by ESLint is patched for GHSA-g3hv-75wg-m249.
+
+The same-day npm registry check still returned `firebase@13.4.0`, `@firebase/firestore@4.20.0`, and `vite-plugin-pwa@2.0.0` as latest. Firestore 4.20.0 still declares `@grpc/grpc-js: ~1.9.0`; Workbox remains on its 7.4.1 dependency line, whose `glob@^11.0.1` range cannot accept the fixed glob 14.0.2+ line. The patched minimatch release for GHSA-g3hv-75wg-m249 is 11.0.1+, while the vulnerable Workbox path resolves 10.2.6. No compatible, range-admitted remediation was available, so the lockfile was not forced to out-of-range versions.
+
 ## Remediation decision
 
 npm suggested `firebase@9.14.0` as an available fix, but marked it as a SemVer-major change from the installed Firebase 13.x dependency. That downgrade was **not** applied because it may remove or break APIs used by the application, including the current Firebase AI Logic integration.
