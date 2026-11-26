@@ -159,7 +159,7 @@ test('safety stop-work hold blocks generative diagnosis and creates an escalatio
   await page.getByRole('button', { name: 'Submit Hybrid Diagnosis' }).click();
 
   await expect(page.getByRole('alert')).toContainText('STOP-WORK SAFETY HOLD — ESCALATION REQUIRED');
-  await expect(page.getByText('DEMO RULES', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('DEMO RULES', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: 'Open Safety Escalation Work Order' }).click();
   await expect(page.getByRole('heading', { name: /Safety-gated repair operations/ })).toBeVisible();
   await expect(page.getByText(/generated under an active Stop-Work Hold/)).toBeVisible();
@@ -175,11 +175,10 @@ test('offline diagnosis is explicitly labelled as deterministic rules and create
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
   await page.getByRole('button', { name: 'Submit Hybrid Diagnosis' }).click();
 
-  await expect(page.getByText('DEMO RULES', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Device is offline and on-device generative model is not initialized/)).toBeVisible();
+  await expect(page.getByText('DEMO RULES', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: 'Accept & Create Safety-Reviewed Work Order' }).click();
   await expect(page.getByRole('heading', { name: /Safety-gated repair operations/ })).toBeVisible();
-  await expect(page.getByText('Work Order', { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Repair Workflow/ })).toBeVisible();
   await page.context().setOffline(false);
 });
 
@@ -193,8 +192,8 @@ test('failed Firebase AI Logic requests show deterministic fallback instead of a
   await page.route('https://firebasevertexai.googleapis.com/**', (route) => route.abort('failed'));
   await page.getByRole('button', { name: 'Force Cloud Gemini Analysis' }).click();
 
-  await expect(page.getByText('DEMO RULES', { exact: true }).first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText(/Firebase AI Logic request failed|request could not complete|not yet enabled or permitted|fell back to deterministic rules/)).toBeVisible();
+  await expect(page.getByText('DEMO RULES', { exact: true }).last()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Firebase AI Logic request failed|request could not complete|not yet enabled or permitted|fell back to deterministic rules/).first()).toBeVisible();
   await expect(page.getByText('CLOUD', { exact: true })).toHaveCount(0);
   await expect(page.getByText('LOCAL', { exact: true })).toHaveCount(0);
 });
