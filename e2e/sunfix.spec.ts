@@ -282,13 +282,13 @@ test('authenticated offline queue persists locally and auto-syncs after reconnec
   expect(persistedQueue).toBe('synced');
 });
 
-test('live Firebase App Check returns a reCAPTCHA Enterprise attestation @live-app-check', async ({
+test('live Firebase App Check returns a registered CI debug token @live-app-check', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chromium', 'Run live App Check smoke once per CI workflow.');
   test.skip(
     process.env.SUNFIX_RUN_LIVE_AI_SMOKE !== 'true',
-    'Set SUNFIX_RUN_LIVE_AI_SMOKE=true and provide a real Firebase project and App Check site key.',
+    'Set SUNFIX_RUN_LIVE_AI_SMOKE=true and provide real Firebase configuration, a matching App Check site key, and a registered CI debug token.',
   );
 
   await page.goto('/');
@@ -299,6 +299,7 @@ test('live Firebase App Check returns a reCAPTCHA Enterprise attestation @live-a
     return requestLiveAppCheckAttestation();
   });
 
+  expect(result.appCheckState).toBe('active_debug');
   expect(result.tokenLength).toBeGreaterThan(20);
 });
 
