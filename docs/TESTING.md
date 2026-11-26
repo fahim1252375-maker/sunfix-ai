@@ -19,7 +19,7 @@ Current setup requirements:
 2. Register the web app in Firebase App Check with the production reCAPTCHA Enterprise provider and its score-based Web key. Keep the production reCAPTCHA key restricted to actual production hostnames; **do not add `localhost` or `127.0.0.1` to a production key**.
 3. Generate a development/CI App Check debug token, register it in Firebase Console -> App Check -> the Web app -> Manage debug tokens, and keep it private.
 4. Add these GitHub Actions repository secrets: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_RECAPTCHA_SITE_KEY`, and `VITE_FIREBASE_APPCHECK_DEBUG_TOKEN`.
-5. Add repository Actions variable `SUNFIX_RUN_LIVE_AI_SMOKE=true`. Optionally set `VITE_FIREBASE_AI_MODEL`.
+5. Add repository Actions variables `SUNFIX_RUN_LIVE_AI_SMOKE=true` and `VITE_FIRESTORE_DATABASE_ID=ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33`. The database ID is configuration, not a secret. Optionally set `VITE_FIREBASE_AI_MODEL`.
 6. Run the Quality checks workflow on the hackathon branch. The local CI smoke test must report `active_debug`, return an App Check token, and complete a genuine Firebase AI Logic cloud request without falling back to `DEMO RULES`.
 
 **Important distinction:** A successful CI run with a registered debug token proves the Firebase AI Logic request works with the authorized debug-token path. It does **not** prove production reCAPTCHA Enterprise attestation. Production App Check must be verified separately from the real deployed hostname using the production reCAPTCHA key.
