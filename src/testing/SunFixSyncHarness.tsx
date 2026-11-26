@@ -1,8 +1,7 @@
 import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { SunFixProvider, useSunFix } from '../context/SunFixContext';
+import { useSunFix } from '../context/SunFixContext';
 
-function SyncHarness() {
+export function SunFixSyncHarness() {
   const {
     user,
     authReady,
@@ -46,25 +45,5 @@ function SyncHarness() {
         Queue asset while offline
       </button>
     </section>
-  );
-}
-
-/**
- * Mount the real application provider around a minimal test surface.
- * This exercises the same IndexedDB queue, account scope, reconnect listener,
- * and processSyncQueue effect used by the shipped application.
- */
-export function mountSunFixSyncHarness(): void {
-  const existing = document.getElementById('sunfix-sync-test-harness');
-  if (existing) existing.remove();
-
-  const host = document.createElement('div');
-  host.id = 'sunfix-sync-test-harness';
-  document.body.appendChild(host);
-
-  createRoot(host).render(
-    <SunFixProvider>
-      <SyncHarness />
-    </SunFixProvider>,
   );
 }
