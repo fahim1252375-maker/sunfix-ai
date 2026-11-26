@@ -166,11 +166,21 @@ test('safety stop-work hold blocks generative diagnosis and creates an escalatio
 });
 
 test('offline diagnosis is explicitly labelled as deterministic rules and creates a repair work order', async ({ page }) => {
+  // Make this test deterministic even on a runner where Chrome exposes an
+  // on-device Prompt API: this case specifically verifies unavailable-local
+  // behavior, not a generated response from a test double.
+  await page.addInitScript(() => {
+    Object.defineProperty(globalThis, 'LanguageModel', {
+      configurable: true,
+      value: { availability: async () => 'unavailable' },
+    });
+  });
   await enterDiagnostics(page);
 
   for (let step = 1; step < 8; step += 1) {
     await page.getByRole('button', { name: 'Next Step' }).click();
   }
+  await expect(page.getByText(/On-Device Model Readiness \(unsupported\)/)).toBeVisible();
   await page.context().setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
   await page.getByRole('button', { name: 'Submit Hybrid Diagnosis' }).click();
