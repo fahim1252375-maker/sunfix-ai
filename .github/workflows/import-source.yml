@@ -1,0 +1,111 @@
+name: Import sanitized SunFix source
+
+on:
+  push:
+    branches:
+      - audit/sunfix-source-review
+    paths:
+      - sunfix-field-5.zip
+      - .github/workflows/import-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract with safety filters
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import re, shutil
+
+          archive = Path("sunfix-field-5.zip")
+          output = Path("safe-source")
+          output.mkdir(exist_ok=True)
+          ignored = {".git", ".aistudio", ".firebase", "node_modules", "dist", "dev-dist", "build", ".next", ".nuxt", ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".turbo", "coverage"}
+          sensitive = {".env", "credentials.json", "service-account.json", "id_rsa", "id_ed25519", "firebase-applet-config.json"}
+          safe_env = {".env.example", ".env.sample", ".env.template"}
+          suffixes = {".pem", ".key", ".p12", ".pfx", ".jks", ".keystore", ".db", ".sqlite", ".sqlite3", ".dump", ".bak", ".csv", ".tsv", ".parquet", ".log", ".zip", ".7z", ".rar", ".tar", ".gz"}
+          secret_patterns = [
+              (b"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----", "private-key"),
+              (b"sk-ant-[A-Za-z0-9_-]{20,}", "anthropic-key"),
+              (b"gh[pousr]_[A-Za-z0-9]{20,}", "github-token"),
+              (b"github_pat_[A-Za-z0-9_]{20,}", "github-fine-grained-token"),
+              (b"AIza[0-9A-Za-z_-]{30,}", "google-api-key"),
+              (b"AKIA[0-9A-Z]{16}", "aws-access-key"),
+              (b"sk_live_[A-Za-z0-9]{16,}", "stripe-live-key"),
+          ]
+          extracted, excluded, flagged = [], [], []
+          with ZipFile(archive) as zf:
+              for info in zf.infolist():
+                  raw = info.filename
+                  p = PurePosixPath(raw)
+                  parts = p.parts
+                  if p.is_absolute() or ".." in parts or "\\" in raw or (parts and ":" in parts[0]):
+                      raise SystemExit("Unsafe archive path; extraction aborted.")
+                  if not parts or raw.endswith("/"):
+                      continue
+                  if ((info.external_attr >> 16) & 0o170000) == 0o120000:
+                      excluded.append((raw, "symlink")); continue
+                  low = [x.lower() for x in parts]
+                  name = parts[-1].lower()
+                  suffix = Path(name).suffix
+                  if "/".join(low).startswith("public/assets/aistudio/"):
+                      excluded.append((raw, "ai-studio-prompt-artifact")); continue
+                  if any(x in ignored for x in low):
+                      excluded.append((raw, "generated-or-dependency")); continue
+                  if name.startswith(".env") and name not in safe_env:
+                      excluded.append((raw, "environment-secret")); continue
+                  if name in sensitive or suffix in suffixes:
+                      excluded.append((raw, "secret-or-runtime-data")); continue
+                  if info.file_size > 15 * 1024 * 1024:
+                      excluded.append((raw, "oversized")); continue
+                  data = zf.read(info)
+                  hit = next((label for pattern, label in secret_patterns if re.search(pattern, data)), None)
+                  if hit:
+                      flagged.append((raw, hit)); excluded.append((raw, "secret-pattern-" + hit)); continue
+                  target = output.joinpath(*parts)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+                  extracted.append(raw)
+
+          manifests = {"package.json", "bun.lock", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "pyproject.toml", "requirements.txt", "go.mod", "Cargo.toml", "composer.json"}
+          found = sorted(x for x in extracted if Path(x).name in manifests)
+          if not extracted:
+              raise SystemExit("No safe files found; nothing will be published.")
+          report = (
+              "SunFix Field archive import review\n"
+              f"Extracted source files: {len(extracted)}\n"
+              f"Excluded files: {len(excluded)}\n"
+              f"Potential secret-pattern matches excluded: {len(flagged)}\n"
+              f"Project manifests: {', '.join(found) or 'none'}\n\n"
+              "Excluded paths (values are never printed):\n" +
+              "".join(f"- {p} [{reason}]\n" for p, reason in excluded)
+          )
+          (output / "ARCHIVE_REVIEW_MANIFEST.txt").write_text(report, encoding="utf-8")
+          print(f"Extracted {len(extracted)} source files; excluded {len(excluded)} files.")
+          print(f"Project manifests: {', '.join(found) or 'none'}")
+          if flagged:
+              print("Potential credential files were excluded. Review exposed credentials in the original archive.")
+          PY
+      - name: Import safe source files
+        shell: bash
+        run: |
+          mkdir -p docs/archive
+          rsync -a --exclude='ARCHIVE_REVIEW_MANIFEST.txt' safe-source/ ./
+          cp safe-source/ARCHIVE_REVIEW_MANIFEST.txt docs/archive/ARCHIVE_REVIEW_MANIFEST.txt
+          rm -rf safe-source
+          git add -A
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "chore: import sanitized SunFix Field source"
+            git push
+          fi

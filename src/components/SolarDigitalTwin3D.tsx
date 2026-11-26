@@ -1411,7 +1411,7 @@ export const SolarDigitalTwin3D: React.FC<SolarDigitalTwin3DProps> = ({
         <div className="pointer-events-auto flex items-center gap-1.5 ml-auto">
           <button
             type="button"
-            aria-label="Explode Inverter — toggle exploded enclosure"
+            aria-label="Toggle exploded inverter enclosure"
             onClick={() => {
               setExplodedInverter((prev) => {
                 const next = !prev;
@@ -1437,7 +1437,7 @@ export const SolarDigitalTwin3D: React.FC<SolarDigitalTwin3DProps> = ({
           <div className="relative">
             <button
               type="button"
-              aria-label="Layers — toggle 3D layer visibility"
+              aria-label="Toggle 3D layer visibility"
               onClick={() => setShowLayersMenu((v) => !v)}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-colors whitespace-nowrap"
               style={{
