@@ -182,10 +182,14 @@ test('offline diagnosis is explicitly labelled as deterministic rules and create
   }
   await expect(page.getByText(/On-Device Model Readiness \(unsupported\)/)).toBeVisible();
   // The production service worker precaches route chunks. Preload the lazy
-  // results route here because the E2E dev server runs without a service worker.
+  // results and repairs routes because the E2E dev server runs without a service worker.
   await page.evaluate(async () => {
     const resultsModulePath = '/src/views/DiagnosticResultsView.tsx';
-    await import(/* @vite-ignore */ resultsModulePath);
+    const repairsModulePath = '/src/views/RepairsView.tsx';
+    await Promise.all([
+      import(/* @vite-ignore */ resultsModulePath),
+      import(/* @vite-ignore */ repairsModulePath),
+    ]);
   });
   await page.context().setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
