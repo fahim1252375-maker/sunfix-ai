@@ -31,8 +31,8 @@ The app uses owner-scoped documents. A client-side role or hidden UI control is 
 
 1. Register the Web App in Firebase App Check using reCAPTCHA Enterprise.
 2. Add the site key to VITE_RECAPTCHA_SITE_KEY.
-3. For local development only, set VITE_FIREBASE_APPCHECK_DEBUG_TOKEN and register the debug token in Firebase Console.
-4. Enable enforcement only after verifying valid tokens for production clients.
+3. For local development only, set VITE_FIREBASE_APPCHECK_DEBUG_TOKEN in .env.local and register the debug token in Firebase Console. The application ignores this variable in production builds.
+4. Keep debug tokens out of source control and rotate any token that has been committed or shared. Enable enforcement only after verifying valid tokens for production clients.
 
 ## 5. AI configuration
 
@@ -40,10 +40,23 @@ The browser must not receive a private Gemini API key. Do not use a VITE_GEMINI_
 
 The deterministic demo fallback is not a live AI service and must be labelled accordingly.
 
-## 6. Before production
+## 6. Local Emulator Suite
 
-- Test sign-in, sign-out, owner isolation, and revoked-user access.
+1. Install dependencies with `bun install`.
+2. Set `VITE_USE_FIREBASE_EMULATORS=true` in `.env.local` only for local development.
+3. Start Auth and Firestore emulators with `bunx firebase-tools emulators:start --only auth,firestore --project demo-sunfix-field`.
+4. In a second terminal, run `bun run dev`.
+5. For actual rules tests, run `bun run test:rules`.
+6. For authenticated SDK sync and browser checks, run `bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`.
+
+The app only connects to emulators when both Vite development mode and `VITE_USE_FIREBASE_EMULATORS=true` are active. Production builds ignore this switch.
+
+## 7. Before production
+
+- Test sign-in, sign-out, owner isolation, and revoked-user access with the real project.
 - Run Firestore rules tests against the Firebase Emulator Suite.
 - Verify App Check in production and local debug mode separately.
 - Configure backups, retention, monitoring, billing alerts, and incident response.
 - Never use simulated telemetry or AI output to make safety-critical electrical decisions.
+
+For the complete automated test matrix and opt-in live Firebase AI Logic smoke test, see [docs/TESTING.md](./TESTING.md).

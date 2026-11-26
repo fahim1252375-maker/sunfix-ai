@@ -2,7 +2,7 @@
 
 **Offline-ready solar diagnostics and field-service workspace**
 
-SunFix Field is a React + TypeScript progressive web app prototype for solar asset operations. It combines an evidence-first diagnostic workflow, repair and service-report flows, an interactive 3D solar digital twin with a 2D fallback, a hybrid AI interface with deterministic demo fallbacks, and local offline persistence.
+SunFix Field is a React + TypeScript progressive web app prototype for solar asset operations. Cloud identity and data persistence are provided by Firebase; the repository does not contain a separate Express/API server. It combines an evidence-first diagnostic workflow, repair and service-report flows, an interactive 3D solar digital twin with a 2D fallback, a hybrid AI interface with deterministic demo fallbacks, and local offline persistence.
 
 > **Important:** Demo assets, telemetry, fault scenarios, AI explanations, and generated evidence are simulated unless explicitly connected to verified live systems. Do not use demo output as electrical safety advice or as a substitute for a qualified technician's inspection.
 
@@ -29,7 +29,7 @@ React 19 · TypeScript · Vite · Tailwind CSS · Three.js · React Three Fiber 
 
 1. Clone the repository and install dependencies:
 
-   npm install
+   bun install
 
 2. Create your local environment file:
 
@@ -39,18 +39,22 @@ React 19 · TypeScript · Vite · Tailwind CSS · Three.js · React Three Fiber 
 
 4. Start the app:
 
-   npm run dev
+   bun run dev
 
 ## Quality checks
 
 Run the same checks used by CI:
 
-- npm run lint
-- npm run lint:eslint
-- npm test
-- npm run build
+- `bun run lint` — TypeScript
+- `bun run lint:eslint` — ESLint and Firebase security-rules lint
+- `bun run test` — unit and static regression tests
+- `bun run test:rules` — Firestore Emulator authorization tests
+- `bun run test:e2e` — desktop/mobile Chromium, accessibility, offline persistence, and authenticated emulator sync
+- `bun run build` — production Vite build
 
-Or run npm run check.
+The first emulator run downloads the Firestore/Auth emulator binaries. For local browser QA, use the emulator environment described in `docs/TESTING.md`.
+
+Run `bun run check` for the core unit/type/lint/build checks; the CI workflow additionally runs emulators and Playwright.
 
 ## Firebase configuration and security
 
@@ -70,6 +74,7 @@ See docs/FIREBASE_SETUP.md and firestore.rules.
 - docs/FIREBASE_SETUP.md
 - docs/DEMO_SCRIPT.md
 - docs/TEST_PLAN.md
+- docs/TESTING.md
 
 ## Production readiness
 
