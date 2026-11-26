@@ -13,6 +13,16 @@ test('landing page renders at desktop and mobile widths without horizontal overf
   }));
   expect(documentMetrics.scrollWidth).toBeLessThanOrEqual(documentMetrics.viewportWidth + 1);
 
+  // Trigger every whileInView lifecycle animation before capturing a full-page
+  // screenshot. Full-page capture does not reliably scroll through each viewport.
+  const lifecycleStages = page.locator('#lifecycle article');
+  await expect(lifecycleStages).toHaveCount(6);
+  for (let index = 0; index < 6; index += 1) {
+    const stage = lifecycleStages.nth(index);
+    await stage.scrollIntoViewIfNeeded();
+    await expect(stage).toHaveCSS('opacity', '1');
+  }
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await page.screenshot({
     path: testInfo.outputPath('sunfix-landing-viewport.png'),
     fullPage: true,
