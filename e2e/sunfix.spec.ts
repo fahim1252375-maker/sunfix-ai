@@ -181,6 +181,12 @@ test('offline diagnosis is explicitly labelled as deterministic rules and create
     await page.getByRole('button', { name: 'Next Step' }).click();
   }
   await expect(page.getByText(/On-Device Model Readiness \(unsupported\)/)).toBeVisible();
+  // The production service worker precaches route chunks. Preload the lazy
+  // results route here because the E2E dev server runs without a service worker.
+  await page.evaluate(async () => {
+    const resultsModulePath = '/src/views/DiagnosticResultsView.tsx';
+    await import(/* @vite-ignore */ resultsModulePath);
+  });
   await page.context().setOffline(true);
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false);
   await page.getByRole('button', { name: 'Submit Hybrid Diagnosis' }).click();
