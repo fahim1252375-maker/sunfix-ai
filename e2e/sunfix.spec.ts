@@ -159,10 +159,12 @@ test('authenticated offline queue persists locally and auto-syncs after reconnec
     const { getStorageScopeId, loadSyncQueueFromIDB, loadWorkspaceFromIDB } =
       await import(/* @vite-ignore */ offlineStoreModulePath);
     const scope = getStorageScopeId(uid);
-    const [queue, workspace] = await Promise.all([
+    const [queueResult, workspaceResult] = await Promise.all([
       loadSyncQueueFromIDB(scope),
       loadWorkspaceFromIDB(scope),
     ]);
+    const queue = queueResult as Array<{ entityId: string; status: string }>;
+    const workspace = workspaceResult as { assets: Array<{ id: string }> } | null;
     return {
       queued: queue.some((item) => item.entityId === `playwright-offline-${uid}` && item.status === 'pending'),
       workspaceHasAsset: Boolean(workspace?.assets.some((asset) => asset.id === `playwright-offline-${uid}`)),
@@ -182,7 +184,10 @@ test('authenticated offline queue persists locally and auto-syncs after reconnec
     const offlineStoreModulePath = '/src/services/offlineStore.ts';
     const { getStorageScopeId, loadSyncQueueFromIDB } =
       await import(/* @vite-ignore */ offlineStoreModulePath);
-    const queue = await loadSyncQueueFromIDB(getStorageScopeId(uid));
+    const queue = (await loadSyncQueueFromIDB(getStorageScopeId(uid))) as Array<{
+      entityId: string;
+      status: string;
+    }>;
     return queue.find((item) => item.entityId === `playwright-offline-${uid}`)?.status;
   }, userId);
 
