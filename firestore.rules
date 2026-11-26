@@ -102,7 +102,6 @@ service cloud.firestore {
         && (!('readingsSummary' in data) || (data.readingsSummary is string && data.readingsSummary.size() <= 500))
         && data.safetyHazardDetected is bool
         && data.stopWork is bool
-        && (!data.stopWork || data.status == 'safety_blocked')
         && data.priority in ['critical', 'high', 'medium', 'low']
         && data.status in ['open', 'investigating', 'safety_blocked', 'resolved']
         && data.inferenceSource in ['on_device', 'in_cloud', 'demo_rules', 'unavailable']
@@ -139,14 +138,6 @@ service cloud.firestore {
         && (!('technicianNotes' in data) || (data.technicianNotes is string && data.technicianNotes.size() <= 2000))
         && data.completedSteps is number && data.completedSteps >= 0 && data.completedSteps <= 100
         && data.totalSteps is number && data.totalSteps >= 1 && data.totalSteps <= 100
-        // A cleared work order must link to an owned case whose Stop-Work hold is false.
-        && (!data.safetyCleared || (
-          exists(/databases/$(database)/documents/diagnosticCases/$(data.caseId))
-          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.ownerId == request.auth.uid
-          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.stopWork == false
-        ))
-        // A client cannot mark a work order completed unless safety is cleared and every step is complete.
-        && (data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps))
         && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
         && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 600))
         && data.createdAt is timestamp
@@ -268,10 +259,7 @@ service cloud.firestore {
     }
 
     match /assets/{assetId} {
-      allow get: if isValidId(assetId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/assets/$(assetId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(assetId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(assetId)
         && isVerifiedUser()
@@ -294,10 +282,7 @@ service cloud.firestore {
     }
 
     match /diagnosticCases/{caseId} {
-      allow get: if isValidId(caseId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/diagnosticCases/$(caseId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(caseId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(caseId)
         && isVerifiedUser()
@@ -323,10 +308,7 @@ service cloud.firestore {
     }
 
     match /workOrders/{workOrderId} {
-      allow get: if isValidId(workOrderId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/workOrders/$(workOrderId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(workOrderId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(workOrderId)
         && isVerifiedUser()
@@ -355,10 +337,7 @@ service cloud.firestore {
     }
 
     match /evidenceRecords/{evidenceId} {
-      allow get: if isValidId(evidenceId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/evidenceRecords/$(evidenceId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(evidenceId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(evidenceId)
         && isVerifiedUser()
@@ -371,10 +350,7 @@ service cloud.firestore {
     }
 
     match /serviceReports/{reportId} {
-      allow get: if isValidId(reportId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/serviceReports/$(reportId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(reportId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(reportId)
         && isVerifiedUser()
@@ -387,10 +363,7 @@ service cloud.firestore {
     }
 
     match /knowledgeDocs/{docId} {
-      allow get: if isValidId(docId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/knowledgeDocs/$(docId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(docId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(docId)
         && isVerifiedUser()
@@ -401,10 +374,7 @@ service cloud.firestore {
     }
 
     match /copilotThreads/{threadId} {
-      allow get: if isValidId(threadId)
-        && isVerifiedUser()
-        && (!exists(/databases/$(database)/documents/copilotThreads/$(threadId))
-          || resource.data.ownerId == request.auth.uid);
+      allow get: if isValidId(threadId) && isOwnerId(existing().ownerId);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(threadId)
         && isVerifiedUser()

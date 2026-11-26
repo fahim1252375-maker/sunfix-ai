@@ -268,13 +268,7 @@ export const HybridAISection: React.FC = () => {
                 Modality Support by Execution Mode
               </h3>
             </div>
-            <div
-              role="region"
-              aria-label="Modality support by execution mode"
-              tabIndex={0}
-              className="overflow-x-auto rounded-xl border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-              style={{ borderColor: TOKENS.hairline, backgroundColor: TOKENS.moss }}
-            >
+            <div className="overflow-x-auto rounded-xl border" style={{ borderColor: TOKENS.hairline, backgroundColor: TOKENS.moss }}>
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b font-mono-tech" style={{ borderColor: TOKENS.hairlineStrong, color: TOKENS.sage }}>
@@ -406,9 +400,7 @@ export const HybridAISection: React.FC = () => {
             </p>
 
             <pre
-              tabIndex={0}
-              aria-label="Structured AI response validation example"
-              className="rounded-lg border p-3 text-[11px] font-mono-tech overflow-x-auto max-h-36 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="rounded-lg border p-3 text-[11px] font-mono-tech overflow-x-auto max-h-36"
               style={{
                 backgroundColor: TOKENS.mossDeep,
                 borderColor: TOKENS.hairline,

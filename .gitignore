@@ -6,9 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-sunfix-field-*.zip
-
-# Playwright and test artifacts
-test-results/
-playwright-report/
-playwright/.cache/
