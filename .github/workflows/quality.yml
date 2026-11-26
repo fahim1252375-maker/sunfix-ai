@@ -70,7 +70,7 @@ jobs:
           VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
           VITE_FIREBASE_AI_MODEL: ${{ vars.VITE_FIREBASE_AI_MODEL }}
           VITE_USE_FIREBASE_EMULATORS: "false"
-        run: bun run test:e2e --grep @live-ai
+        run: bun run test:e2e --grep @live
       - name: Production build
         run: bun run build
       - name: Upload browser QA screenshots and reports
