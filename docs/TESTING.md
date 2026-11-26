@@ -9,20 +9,20 @@
 
 The browser test suite starts the Vite development server and uses emulator-only Firebase configuration. No production project credentials are used by the default CI run. The Auth emulator E2E test creates a disposable test user, verifies its email through the Auth Emulator OOB-code flow, force-refreshes its ID token to obtain the `email_verified` claim, calls the same Firestore sync service used by the app, and verifies the owner-scoped cloud record count. The browser suite separately checks that an offline workspace remains available in IndexedDB after the browser reconnects.
 
-## Live Firebase AI Logic check
+## Live Firebase App Check and AI Logic checks
 
-The `@live-ai` Playwright test is intentionally opt-in. To enable it:
+The `@live-app-check` and `@live-ai` Playwright tests are intentionally opt-in and run once in desktop Chromium. To enable it:
 
 1. Configure a real Firebase Web App and enable Firebase AI Logic / Gemini Developer API in the Firebase project.
 2. Register the Web App in Firebase App Check with a reCAPTCHA Enterprise site key. Add `localhost` as an allowed site for the CI browser test if your App Check setup requires it.
 3. Add these GitHub Actions repository secrets: `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, and `VITE_RECAPTCHA_SITE_KEY`.
 4. Add repository Actions variable `SUNFIX_RUN_LIVE_AI_SMOKE=true`. Optionally set `VITE_FIREBASE_AI_MODEL`.
-5. Run the workflow. The test uses the real Firebase AI Logic provider and fails when the result falls back to deterministic demo rules.
+5. Run the workflow. The App Check test must retrieve a real attestation token from the configured site key; the AI test uses the real Firebase AI Logic provider and fails when the result falls back to deterministic demo rules.
 
 Local run:
 
 ```sh
-SUNFIX_RUN_LIVE_AI_SMOKE=true bun run test:e2e --grep @live-ai
+SUNFIX_RUN_LIVE_AI_SMOKE=true bun run test:e2e --grep @live
 ```
 
 Export the real Firebase Web App variables and App Check site key in the shell first. Do not place a private Gemini key in a `VITE_*` variable.
