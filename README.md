@@ -22,8 +22,8 @@ React 19 · TypeScript · Vite · Tailwind CSS · Three.js · React Three Fiber 
 
 ## Requirements
 
-- Node.js 22 or newer
-- npm 10+ (or Bun compatible with the committed lockfile)
+- Node.js 24.12.0 or newer (required by the committed Firebase SDK versions)
+- Bun 1.4.5 (the version pinned in CI and `packageManager`)
 
 ## Local development
 
