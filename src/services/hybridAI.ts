@@ -23,6 +23,14 @@ import {
 } from '../utils/diagnosticsLogic';
 import { firebaseApp, getAppCheckStatus } from './firebase';
 
+function getSafeProviderErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('code' in error) || typeof error.code !== 'string') {
+    return null;
+  }
+  const code = error.code.trim().slice(0, 80);
+  return /^[a-z0-9/_-]+$/i.test(code) ? code : null;
+}
+
 export const CLOUD_MODEL_NAME =
   (import.meta.env.VITE_FIREBASE_AI_MODEL as string | undefined)?.trim() || 'gemini-2.5-flash';
 
@@ -238,7 +246,7 @@ export async function inspectHybridRuntimeCapabilities(
       sdkLanguageModelStatus = String(await lm.availability());
     }
   } catch (err) {
-    sdkLanguageModelStatus = err instanceof Error ? err.message : 'Probe error';
+    sdkLanguageModelStatus = 'Browser on-device model availability could not be checked.';
   }
 
   return {
@@ -295,7 +303,7 @@ export async function checkInitialDeviceAvailability(): Promise<{
   } catch (err) {
     return {
       availability: 'unsupported',
-      detail: err instanceof Error ? err.message : 'Unable to query browser on-device availability.',
+      detail: 'Unable to query browser on-device model availability. Cloud or deterministic fallback remains available.',
     };
   }
 }
@@ -329,10 +337,7 @@ export async function prepareOnDeviceModel(
     return {
       ok: false,
       availability: 'error',
-      detail:
-        err instanceof Error
-          ? err.message
-          : 'On-device initialization failed. Cloud fallback remains available when connected.',
+      detail: 'On-device initialization failed. Cloud fallback remains available when connected.',
     };
   }
 }
@@ -564,9 +569,12 @@ Required JSON schema:
       rawError.includes('ACCESS_DENIED') ||
       rawError.includes('api-not-enabled') ||
       rawError.includes('Permission denied');
+    const providerErrorCode = getSafeProviderErrorCode(err);
     const cleanDetail = isPermissionOrApiDisabled
-      ? 'Firebase AI Logic API returned 403 (enable Firebase AI Logic / Gemini Developer API and App Check in Firebase Console).'
-      : rawError.slice(0, 220);
+      ? 'Firebase AI Logic returned an access error. Enable Firebase AI Logic and configure App Check in Firebase Console.'
+      : providerErrorCode
+        ? `Firebase AI Logic request failed (${providerErrorCode}).`
+        : 'Firebase AI Logic request failed. A deterministic fallback was used.';
 
     const appCheck = getAppCheckStatus();
     const assessment = runDeterministicFallbackAssessment(
@@ -674,7 +682,7 @@ export async function analyzePdfManualCloudOnly(params: {
     return {
       ok: false,
       inferenceSource: 'unavailable',
-      error: err instanceof Error ? err.message : 'Cloud PDF analysis failed.',
+      error: getSafeProviderErrorCode(err) ? `Cloud PDF analysis failed (${getSafeProviderErrorCode(err)}).` : 'Cloud PDF analysis failed. Check connectivity and Firebase AI configuration.',
     };
   }
 }
@@ -942,7 +950,7 @@ export async function runCopilotTurn(params: RunCopilotTurnParams): Promise<RunC
       intent,
     };
   } catch (err) {
-    console.warn('[SunFix Copilot] AI call fallback:', err);
+    console.warn('[SunFix Copilot] AI request failed; deterministic fallback used.');
     const fb = runDeterministicCopilotFallback({
       userMessage: params.userMessage,
       context: params.context,

@@ -4,26 +4,23 @@ import { TOKENS } from '../theme/tokens';
 
 interface State {
   hasError: boolean;
-  message: string;
 }
 
 export class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
   constructor(props: { children: React.ReactNode }) {
     super(props);
-    this.state = { hasError: false, message: '' };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return {
-      hasError: true,
-      message: error.message || 'An unexpected application error occurred.',
-    };
+  static getDerivedStateFromError(): State {
+    return { hasError: true };
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div
+          role="alert"
           className="min-h-screen flex items-center justify-center p-6"
           style={{ backgroundColor: TOKENS.ink, color: TOKENS.bone }}
         >
@@ -36,18 +33,10 @@ export class ErrorBoundary extends React.Component<{ children: React.ReactNode }
               <h1 className="text-lg font-display">Application Recovery</h1>
             </div>
             <p className="text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
-              SunFix Field caught a runtime error while rendering this view. Your offline records in IndexedDB remain preserved.
+              SunFix Field could not render this screen because an unexpected error occurred.
+              Reload the workspace to try again. This recovery action does not intentionally clear
+              your locally stored workspace.
             </p>
-            <pre
-              className="text-xs font-mono-tech border rounded-lg p-3 overflow-auto max-h-40"
-              style={{
-                backgroundColor: TOKENS.mossDeep,
-                borderColor: TOKENS.hairline,
-                color: TOKENS.amberWarn,
-              }}
-            >
-              {this.state.message}
-            </pre>
             <button
               type="button"
               onClick={() => window.location.reload()}
