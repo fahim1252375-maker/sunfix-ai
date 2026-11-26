@@ -12,7 +12,7 @@ bun run lint
 bun run lint:eslint
 bun run test
 bun run test:rules
-bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
+bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
 bun run build
 ```
 

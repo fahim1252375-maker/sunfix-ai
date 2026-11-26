@@ -4,15 +4,12 @@ Firebase is optional for the local deterministic demo. Real authentication, clou
 
 ## 1. Register the SunFix AI Web App
 
-1. Open the [Firebase console](https://console.firebase.google.com/) and select the project you intend to use for SunFix AI. If you do not have one, create a project first.
-2. From Project Overview, choose the **Web** app icon, or open Project settings -> General -> Your apps -> Add app -> Web.
-3. For **App nickname**, use `SunFix AI Web`.
-4. Firebase Hosting is optional. Leave its setup unchecked for now; hosting can be configured after live integration tests.
-5. Click **Register app**.
-6. On the **Add Firebase SDK** screen, choose the **npm** option. This repository already declares the `firebase` package in `package.json`; do not create a second project or replace the existing package manager/lockfile just to follow the generic install snippet.
-7. Copy the Firebase Web App configuration object shown by the console. Map its values to the environment variables below; do not paste the object into a public source file.
+1. Open the [Firebase console](https://console.firebase.google.com/) and select the existing project `avid-grin-p01dl`. Do not create a project.
+2. Open Project settings -> General -> Your apps and check for an existing SunFix AI Web app. Reuse it if present.
+3. Only if no suitable Web app exists, choose **Add app -> Web**, use nickname `SunFix AI Web`, leave Firebase Hosting unchecked, and register it.
+4. Open the app's settings and copy its Firebase Web App configuration object. Map its values to the environment variables below; do not paste the object into a public source file. The repository already declares the `firebase` package; do not replace its package manager or lockfile to follow a generic install snippet.
 
-The application reads these exact variables (all are present in `.env.example`):
+For the existing app, inspect its actual config and verify `projectId` is `avid-grin-p01dl`. The application reads these exact variables (all are present in `.env.example`):
 
 | Firebase config property | Environment variable | Requirement |
 | --- | --- | --- |
@@ -51,20 +48,25 @@ For the Firebase project `avid-grin-p01dl`, the Firebase Console currently shows
 
 The Authentication authorized-domain list is separate from the domain allowlist on a reCAPTCHA Enterprise key.
 
-## 3. Create Cloud Firestore safely
+## 3. Target the existing Cloud Firestore database safely
 
-1. In Firebase Console, open **Databases & Storage -> Firestore** and click **Create database**.
-2. Use **Standard edition** and choose the database location carefully for your expected users and data-residency needs.
-3. Use the default database unless you have deliberately configured another database ID.
-4. Choose **Production mode**. Do not leave a client database in Test mode, which can permit broad unauthenticated access.
-5. The initial Production-mode rules deny client reads and writes. After checking the project ID and reviewing this repository's `firestore.rules`, deploy the repository rules from the project root:
+The existing project is `avid-grin-p01dl`, and its already-created database is `ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33` in `asia-south1`. Do not create a project or database. First inspect the project's database list, verify the database ID/location and free-tier eligibility in Firebase Console, then compare its current Rules tab with `firestore.rules`.
+
+`firebase.json` is the live deployment configuration and contains **only** the existing named database. `firebase.emulator.json` isolates the default-database emulator configuration used by tests. The multi-database array format and database-specific `--only firestore:<databaseId>` selector are supported by Firebase CLI. Always use the explicit project and database flags for a live action:
 
 ```sh
-bunx firebase-tools login
-bunx firebase-tools deploy --only firestore:rules --project YOUR_FIREBASE_PROJECT_ID
+bunx firebase-tools@15.37.0 firestore:databases:list --project avid-grin-p01dl
+bunx firebase-tools@15.37.0 firestore:databases:get ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33 --project avid-grin-p01dl
+bunx firebase-tools@15.37.0 deploy --only firestore:ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33 --project avid-grin-p01dl --dry-run
 ```
 
-Replace `YOUR_FIREBASE_PROJECT_ID` with the exact `projectId` from the Firebase Web App configuration. The repository's `firebase.json` points the deploy command to `firestore.rules`. Do not deploy to a project until you have confirmed its project ID.
+The dry run is a preflight; it does not publish rules. `firebase.json` contains only the named database. Keep the explicit `--only` and `--project` arguments to prevent accidental deployment to another Firebase project or database. After comparing the live rules and confirming the project is eligible to remain within its existing no-cost plan, deploy only the named database:
+
+```sh
+bunx firebase-tools@15.37.0 deploy --only firestore:ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33 --project avid-grin-p01dl
+```
+
+After deployment, re-open that database's Rules tab and verify the published rules/version. Cloud Firestore's free quota applies to only one database per project; confirm that this specific database is marked eligible before enabling real traffic under a strict $0/month constraint. If it is not eligible, stop before live writes or any billing change.
 
 The app uses owner-scoped documents, verified-user authorization, validation, and deny-by-default rules. A client-side role or hidden UI control is not an authorization boundary; Firestore rules must enforce every read and write. The rules have passed the repository's Firestore Emulator tests, but you must still verify the intended live project after deployment.
 
@@ -92,7 +94,7 @@ For details, see [Firebase App Check with reCAPTCHA Enterprise](https://firebase
 2. Open **AI Services -> AI Logic** and click **Get started**.
 3. Follow the guided workflow to enable the required APIs and resources.
 4. Choose the **Gemini Developer API** provider to get started quickly; Vertex AI may require billing and additional configuration.
-5. Confirm that the selected model is supported by the chosen provider. SunFix AI currently defaults to `gemini-3.5-flash-lite`; override it with `VITE_FIREBASE_AI_MODEL` only when you have verified that the chosen model is available to the configured provider.
+5. SunFix AI defaults to `gemini-3.5-flash-lite`. Firebase currently lists this model for the Gemini Developer API and marks billing as not required. Confirm that the project selected this provider and that the model is available in its console before making a live request; do not switch to Agent Platform/Vertex AI under the no-billing constraint. See [Firebase's supported models](https://firebase.google.com/docs/ai-logic/models) and [AI Logic pricing](https://firebase.google.com/docs/ai-logic/pricing?api=dev).
 6. Complete the App Check setup. A valid App Check token is required for Firebase AI Logic requests.
 
 The app sends model requests through the Firebase AI Logic Web SDK (`firebase/ai`). The browser must not receive a private Gemini API key. Do not use a `VITE_GEMINI_API_KEY` variable. For private credentials or custom server-side model calls, use a backend endpoint and a secret manager.
@@ -114,10 +116,10 @@ Do not use a Stop-Work hazard sample to test inference: the deterministic safety
 
 1. Install dependencies with `bun install`.
 2. Set `VITE_USE_FIREBASE_EMULATORS=true` in `.env.local` only for local development.
-3. Start Auth and Firestore emulators with `bunx firebase-tools emulators:start --only auth,firestore --project demo-sunfix-field`.
+3. Start Auth and Firestore emulators with `bunx firebase-tools@15.37.0 emulators:start --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field`.
 4. In a second terminal, run `bun run dev`.
 5. For actual rules tests, run `bun run test:rules`.
-6. For authenticated SDK sync and browser checks, run `bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`.
+6. For authenticated SDK sync and browser checks, run `bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`.
 
 The app only connects to emulators when both Vite development mode and `VITE_USE_FIREBASE_EMULATORS=true` are active. Production builds ignore this switch.
 

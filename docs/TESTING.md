@@ -4,7 +4,9 @@
 
 - Unit/static regression tests: `bun run test`
 - Firestore authorization rules against the Firebase Emulator: `bun run test:rules`
-- Desktop and mobile browser QA, WCAG axe checks, simulated offline mode, and authenticated Auth/Firestore emulator sync: `bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`
+- Desktop and mobile browser QA, WCAG axe checks, simulated offline mode, and authenticated Auth/Firestore emulator sync: `bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field "bun run test:e2e"`
+
+Live Firestore rules deployment targets only the named database configured in `firebase.json`. Emulator tests must use `firebase.emulator.json`, which isolates the default emulator database.
 - Production bundle: `bun run build`
 
 The browser test suite starts the Vite development server at `127.0.0.1:4173` and uses emulator-only Firebase configuration for the default CI run. No production project credentials are used by the default CI run. The Auth emulator E2E test creates a disposable test user, verifies its email through the Auth Emulator OOB-code flow, and force-refreshes its ID token to obtain the `email_verified` claim. The offline-to-online browser test mounts the real `SunFixProvider`, queues a new asset while the browser is offline, verifies the account-scoped IndexedDB workspace and pending queue, reconnects the browser, waits for the provider's automatic `processSyncQueue` effect, and verifies both the persisted `synced` queue state and the owner-scoped Firestore record count. This exercises the app context and reconnect path rather than directly calling only the lower-level sync service.

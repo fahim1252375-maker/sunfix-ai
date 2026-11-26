@@ -57,7 +57,7 @@ jobs:
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
       - name: Authenticated emulator sync, responsive and accessibility tests
-        run: bunx firebase-tools emulators:exec --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
+        run: bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
       - name: Optional live Firebase AI Logic integration test
         if: ${{ vars.SUNFIX_RUN_LIVE_AI_SMOKE == 'true' }}
         env:

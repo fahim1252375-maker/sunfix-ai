@@ -190,6 +190,22 @@ test('a Stop-Work diagnostic case cannot be written as an ordinary investigating
   await assertSucceeds(setDoc(doc(db, 'diagnosticCases', valid.id), valid));
 });
 
+test('a reported safety hazard cannot be stored without a Stop-Work hold', async () => {
+  await seedOwnedAssetAndCase();
+  const db = verifiedDb();
+  const invalid = {
+    ...diagnosticCaseRecord(),
+    id: 'case-hazard-without-hold',
+    safetyHazardDetected: true,
+    stopWork: false,
+    status: 'investigating',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await assertFails(setDoc(doc(db, 'diagnosticCases', invalid.id), invalid));
+});
+
 test('a work order cannot be safety-cleared while its linked case has a Stop-Work hold', async () => {
   await seedOwnedAssetAndCase(true);
   const db = verifiedDb();
@@ -211,6 +227,29 @@ test('a work order cannot be safety-cleared while its linked case has a Stop-Wor
           status: 'blocked',
         }),
         id: 'work-order-blocked',
+      },
+    ),
+  );
+});
+
+test('a work order cannot be safety-cleared against a legacy case with an inconsistent hazard flag', async () => {
+  await seedOwnedAssetAndCase();
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'diagnosticCases', 'case-legacy-inconsistent'), {
+      ...diagnosticCaseRecord(),
+      id: 'case-legacy-inconsistent',
+      safetyHazardDetected: true,
+      stopWork: false,
+    });
+  });
+
+  await assertFails(
+    setDoc(
+      doc(verifiedDb(), 'workOrders', 'work-order-legacy-hazard'),
+      {
+        ...workOrderPayload({ caseId: 'case-legacy-inconsistent', safetyCleared: true }),
+        id: 'work-order-legacy-hazard',
       },
     ),
   );

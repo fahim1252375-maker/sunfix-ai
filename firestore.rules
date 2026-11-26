@@ -102,6 +102,7 @@ service cloud.firestore {
         && (!('readingsSummary' in data) || (data.readingsSummary is string && data.readingsSummary.size() <= 500))
         && data.safetyHazardDetected is bool
         && data.stopWork is bool
+        && (!data.safetyHazardDetected || (data.stopWork && data.status == 'safety_blocked'))
         && (!data.stopWork || data.status == 'safety_blocked')
         && data.priority in ['critical', 'high', 'medium', 'low']
         && data.status in ['open', 'investigating', 'safety_blocked', 'resolved']
@@ -144,6 +145,7 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/diagnosticCases/$(data.caseId))
           && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.ownerId == request.auth.uid
           && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.stopWork == false
+          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.safetyHazardDetected == false
         ))
         // A client cannot mark a work order completed unless safety is cleared and every step is complete.
         && (data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps))

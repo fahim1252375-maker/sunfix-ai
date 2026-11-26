@@ -13,7 +13,7 @@
     "lint:eslint": "eslint .",
     "check": "npm run lint && npm run lint:eslint && npm test && npm run build",
     "test:rules:integration": "tsx --test tests/firestore.rules.emulator.test.ts",
-    "test:rules": "bunx firebase-tools emulators:exec --only firestore --project demo-sunfix-field \"bun run test:rules:integration\"",
+    "test:rules": "bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only firestore --project demo-sunfix-field \"bun run test:rules:integration\"",
     "test:e2e": "playwright test"
   },
   "dependencies": {
