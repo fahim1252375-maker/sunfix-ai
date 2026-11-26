@@ -43,8 +43,12 @@ function inferenceLabel(source?: CopilotMessage['inferenceSource']): {
       return { label: 'LOCAL', color: TOKENS.mint };
     case 'in_cloud':
       return { label: 'CLOUD', color: TOKENS.sky };
-    default:
+    case 'demo_rules':
       return { label: 'DEMO RULES', color: TOKENS.amberWarn };
+    case 'unavailable':
+      return { label: 'UNAVAILABLE', color: TOKENS.terracotta };
+    default:
+      return { label: 'UNAVAILABLE', color: TOKENS.terracotta };
   }
 }
 

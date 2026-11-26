@@ -831,7 +831,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               ? 'LOCAL'
               : aiRes.inferenceRecord.inferenceSource === 'in_cloud'
                 ? 'CLOUD'
-                : 'DEMO RULES',
+                : aiRes.inferenceRecord.inferenceSource === 'demo_rules'
+                  ? 'DEMO RULES'
+                  : 'UNAVAILABLE',
         },
       ];
       const newCase: DiagnosticCase = {

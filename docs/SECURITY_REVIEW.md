@@ -1,11 +1,11 @@
 # Dependency security review
 
 **Review date:** 2026-11-26  
-**Scope:** Dependency audit evidence from the isolated npm trial for the repository's Firebase 13.4.0 dependency tree.
+**Scope:** Current npm audit metadata, the Bun-resolved Firebase 13.4.0 and Workbox dependency trees, and the production dependency graph.
 
 ## Confirmed findings
 
-The trial reported **4 High, 0 Critical, 0 Moderate, and 0 Low** findings. The same summary was returned by both the full audit and `npm audit --omit=dev`, so the findings are present in the production dependency graph.
+The current audit reported **5 High, 4 Moderate, 0 Critical** findings across the full dependency graph and **4 High, 4 Moderate, 0 Critical** with `--omit=dev`. The production findings include the Firebase / gRPC chain and the PWA / Workbox chain below. The additional full-graph High finding is in the development-only `@firebase/rules-unit-testing@4.0.1` package.
 
 The affected installed package chain was:
 
@@ -14,6 +14,8 @@ firebase@13.4.0
 └── @firebase/firestore@4.20.0
     └── @grpc/grpc-js@1.9.16
 ```
+
+The npm audit also reports the associated `@firebase/firestore` and `firebase` advisories. npm's suggested Firebase fix is `9.14.0`, a major downgrade from the installed 13.x API and not a safe remediation for this Firebase AI Logic app.
 
 The audit also reported `@firebase/firestore-compat@0.4.18`, which depends on the same Firestore package. The installed `@grpc/grpc-js@1.9.16` is within the advisory's affected range (versions below 1.13.6). The audit output linked these advisories:
 
@@ -56,9 +58,20 @@ Before production release:
 5. Record the exact package versions, lockfile diff, audit output, and test results.
 6. Do not describe the repository as security-clean until the production audit is clean or a formally accepted, technically justified exception is recorded.
 
-## Separate Workbox glob trial
+## Workbox and glob findings
 
-An isolated Bun 1.4.5 trial verified that Workbox could resolve `glob@14.0.3` and load its CommonJS `globSync` export; the full local typecheck, lint, 32 unit tests, and Vite/PWA build passed. That override is not included in this change because the generated local `bun.lock` was not available to the GitHub review workflow for independent byte-for-byte review. The existing lockfile is therefore kept in sync with the repository's prior validated state rather than committing an unreviewed lockfile rewrite. The npm audit evidence did not report a separate `glob` or `minimatch` finding.
+The actual Bun dependency tree resolves:
+
+```text
+vite-plugin-pwa@2.0.0
+└── workbox-build@7.4.1
+    └── glob@11.1.0
+        └── minimatch@10.2.6
+```
+
+The current npm audit reports moderate advisories for `glob` (AbortSignal cancellation bypass), `minimatch` (globparts amplification), and the dependent `workbox-build` / `vite-plugin-pwa` path. The parent ranges do not admit the fixed `glob@14.0.2` line. npm suggests downgrading `vite-plugin-pwa` to `1.1.0`; that crosses the installed major and was not applied without a Vite 8 compatibility review. No nested override was forced.
+
+The Bun lockfile was regenerated from the existing manifest so its already-declared Playwright, emulator-test, and IndexedDB test packages are locked. A frozen install now succeeds. This lockfile refresh does not remediate the advisories above.
 
 ## Install-script policy
 

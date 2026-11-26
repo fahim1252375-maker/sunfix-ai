@@ -35,7 +35,7 @@ React 19 · TypeScript · Vite · Tailwind CSS · Three.js · React Three Fiber 
 
    cp .env.example .env.local
 
-3. Fill in the Firebase Web App values in .env.local. Firebase is optional for the local demo experience, but sign-in and cloud sync require a valid Firebase project, enabled Google provider, and deployed Firestore rules.
+3. Fill in the Firebase Web App values in .env.local. Firebase is optional for the local demo experience, but sign-in and cloud sync require a valid Firebase project, enabled Google provider, and deployed Firestore rules. The cloud model defaults to `gemini-3.5-flash-lite`; `VITE_FIREBASE_AI_MODEL` can override it with a model enabled for the project.
 
 4. Start the app:
 
@@ -75,6 +75,8 @@ See docs/FIREBASE_SETUP.md and firestore.rules.
 - docs/DEMO_SCRIPT.md
 - docs/TEST_PLAN.md
 - docs/TESTING.md
+- docs/HACKATHON_NOTES.md
+- docs/SECURITY_REVIEW.md
 
 ## Production readiness
 
@@ -88,4 +90,4 @@ This repository is a development/demo baseline, not a certified solar operations
 
 ## License
 
-Apache-2.0. See LICENSE.
+Apache-2.0. See LICENSE and NOTICE.

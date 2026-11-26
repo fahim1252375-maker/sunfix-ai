@@ -3,7 +3,6 @@ import {
   getGenerativeModel,
   GoogleAIBackend,
   InferenceMode,
-  InferenceSource,
   type GenerativeModel,
   type Part,
 } from 'firebase/ai';
@@ -21,6 +20,7 @@ import {
   parseAndValidateAssessment,
   runDeterministicFallbackAssessment,
 } from '../utils/diagnosticsLogic';
+import { mapInferenceSource } from '../utils/inferenceSource';
 import { firebaseApp, getAppCheckStatus } from './firebase';
 
 function getSafeProviderErrorCode(error: unknown): string | null {
@@ -32,7 +32,7 @@ function getSafeProviderErrorCode(error: unknown): string | null {
 }
 
 export const CLOUD_MODEL_NAME =
-  (import.meta.env.VITE_FIREBASE_AI_MODEL as string | undefined)?.trim() || 'gemini-2.5-flash';
+  (import.meta.env.VITE_FIREBASE_AI_MODEL as string | undefined)?.trim() || 'gemini-3.5-flash-lite';
 
 const SYSTEM_INSTRUCTION = `You are SunFix Field's solar photovoltaic diagnostic assistant.
 Strict rules:
@@ -342,12 +342,6 @@ export async function prepareOnDeviceModel(
   }
 }
 
-function mapSdkInferenceSource(source: InferenceSource | undefined): InferenceSourceKind {
-  if (source === InferenceSource.ON_DEVICE) return 'on_device';
-  if (source === InferenceSource.IN_CLOUD) return 'in_cloud';
-  return 'in_cloud';
-}
-
 function dataUrlToInlinePart(dataUrl: string): Part | null {
   const match = dataUrl.match(/^data:(image\/(?:png|jpeg|jpg));base64,(.+)$/i);
   if (!match) return null;
@@ -533,7 +527,7 @@ Required JSON schema:
     const model = req.forceCloudOnly ? getCloudOnlyModel() : getHybridModel();
     const result = await model.generateContent(parts);
     const rawText = result.response.text();
-    const actualSource = mapSdkInferenceSource(result.response.inferenceSource);
+    const actualSource = mapInferenceSource(result.response.inferenceSource, req.forceCloudOnly ? 'only_in_cloud' : 'prefer_on_device');
     const validIds = req.knowledgeLibrary.map((k) => k.id);
     const parsed = parseAndValidateAssessment(rawText, validIds);
 
@@ -553,7 +547,9 @@ Required JSON schema:
         modelName:
           actualSource === 'on_device'
             ? 'Gemini Nano (On-Device via Firebase AI Logic)'
-            : `${CLOUD_MODEL_NAME} (Cloud via Firebase AI Logic)`,
+            : actualSource === 'in_cloud'
+              ? `${CLOUD_MODEL_NAME} (Cloud via Firebase AI Logic)`
+              : 'Firebase AI Logic (inference source unavailable)',
         timestamp: new Date().toISOString(),
         latencyMs: Math.round(performance.now() - startedAt),
         validationPassed: true,
@@ -661,7 +657,7 @@ export async function analyzePdfManualCloudOnly(params: {
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
     return {
       ok: true,
-      inferenceSource: mapSdkInferenceSource(result.response.inferenceSource),
+      inferenceSource: mapInferenceSource(result.response.inferenceSource, 'only_in_cloud'),
       extracted: {
         title: String(parsed.title || params.fileName).slice(0, 160),
         publisher: String(parsed.publisher || 'Imported Manual').slice(0, 100),
@@ -881,7 +877,7 @@ export async function runCopilotTurn(params: RunCopilotTurnParams): Promise<RunC
       }
       const finalResp = await streamResult.response;
       if (!rawText) rawText = finalResp.text();
-      actualSource = mapSdkInferenceSource(finalResp.inferenceSource);
+      actualSource = mapInferenceSource(finalResp.inferenceSource, 'prefer_on_device');
     } else {
       // Multi-turn streaming on cloud via ONLY_IN_CLOUD startChat + sendMessageStream
       const model = getCopilotCloudChatModel();
@@ -903,7 +899,7 @@ export async function runCopilotTurn(params: RunCopilotTurnParams): Promise<RunC
       }
       const finalResp = await streamResult.response;
       if (!rawText) rawText = finalResp.text();
-      actualSource = mapSdkInferenceSource(finalResp.inferenceSource);
+      actualSource = mapInferenceSource(finalResp.inferenceSource, 'only_in_cloud');
     }
 
     // 2. Post-response deterministic safety filter
@@ -927,7 +923,9 @@ export async function runCopilotTurn(params: RunCopilotTurnParams): Promise<RunC
       modelName:
         actualSource === 'on_device'
           ? 'Gemini Nano (Single-Shot On-Device)'
-          : `${CLOUD_MODEL_NAME} (Cloud Streaming via Firebase AI Logic)`,
+          : actualSource === 'in_cloud'
+            ? `${CLOUD_MODEL_NAME} (Cloud Streaming via Firebase AI Logic)`
+            : 'Firebase AI Logic (inference source unavailable)',
       latencyMs: Math.round(performance.now() - startedAt),
       citedSourceIds: finalCited,
       droppedSourceIds,
