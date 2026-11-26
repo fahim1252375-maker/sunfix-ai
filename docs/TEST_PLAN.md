@@ -23,19 +23,21 @@ bun run build
 - `test:e2e`: Playwright desktop/mobile browser suite; run inside Auth and Firestore emulators for the authenticated sync cases.
 - `bun run build`: production Vite build.
 
-## Last recorded GitHub Actions verification
+## Latest GitHub Actions verification
 
-Successful Quality checks run: [#87 / run 45750695967](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45750695967)
+Successful Quality checks run: [run 45807310075](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45807310075)
 
-Verified commit: `a9782ec87e6f7890ed57c30b7552faa4e27fd79c` on `audit/sunfix-hardening-2026-11-25`.
+Verified commit: `e6095de337ae9ef0d72e916ff1c3ad14c18d35a8` on `hackathon/buildhybridai-2026-11-26`.
 
 - TypeScript check — passed.
 - ESLint — passed.
-- Unit and static regression tests — **32/32 passed**.
+- Unit and static regression tests — **39/39 passed**.
 - Firestore Emulator authorization tests — **6/6 passed**.
-- Playwright — **8 passed, 4 skipped**. The skipped cases are the optional live-project App Check and AI checks; the normal desktop/mobile responsive, accessibility, navigation, simulated offline persistence, and authenticated emulator sync flows passed.
+- Playwright on GitHub Actions Linux — **13 passed, 5 skipped** across desktop and mobile Chromium. This includes responsive layout, accessibility, safety Stop-Work, work-order creation, offline deterministic fallback, failed cloud-request fallback, and authenticated emulator sync. Four skips are the opt-in production App Check/AI checks across the two browser projects; one is the desktop-only provider failure smoke on mobile.
 - Production Vite build — passed.
 - Browser screenshots, traces and test report — uploaded as the `sunfix-browser-qa` artifact for the run.
+
+Download the [browser QA artifact](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45807310075). GitHub retains it for seven days.
 
 The emulator sync test creates an email-verified test identity, mounts the real `SunFixProvider`, queues an asset while offline, checks account-scoped IndexedDB state, reconnects, and verifies the Firestore write and synced queue status. This is stronger than a unit test of the low-level sync helper, but it is still an emulator test.
 
