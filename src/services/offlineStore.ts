@@ -169,6 +169,44 @@ export async function saveSyncQueueItemToIDB(
   });
 }
 
+export async function saveSyncQueueItemsToIDB(
+  items: SyncQueueItem[],
+  scopeId: string,
+): Promise<void> {
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_QUEUE, 'readwrite');
+    const store = tx.objectStore(STORE_QUEUE);
+
+    try {
+      for (const item of items) {
+        store.put({ ...item, scopeId } satisfies StoredSyncQueueItem);
+      }
+    } catch (error) {
+      // Abort the entire snapshot if any item cannot be enqueued. IndexedDB
+      // rolls back earlier puts in the same readwrite transaction.
+      try { tx.abort(); } catch { /* The transaction may already be inactive. */ }
+      db.close();
+      reject(error);
+      return;
+    }
+
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error || new Error('Sync queue snapshot transaction aborted.'));
+    };
+  });
+}
+
+
 export async function clearAllIDB(scopeId: string): Promise<void> {
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
