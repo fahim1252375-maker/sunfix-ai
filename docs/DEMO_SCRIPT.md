@@ -2,7 +2,7 @@
 
 **Recording language:** English
 **Maximum runtime:** 3:00
-**Current live status:** Firebase AI Logic and App Check are not configured in the checked-out environment. The browser review produced an honestly labeled `DEMO RULES` response. Do not present a local or cloud model call as verified until the preflight below succeeds.
+**Current public-demo status:** The deployed preview has no Firebase Web App environment configuration. It uses simulated site data, browser-local persistence, and deterministic `DEMO RULES`. Google sign-in, Firestore cloud sync, App Check, and live Gemini inference are not active on the public demo. Do not present a local or cloud model call as verified.
 
 ## Before recording
 
@@ -32,13 +32,13 @@ Open a demonstration diagnosis and select **Visible smoke** in the Safety Gate.
 
 Use the saved non-hazard demonstration case for the rest of the walkthrough. Never clear a real field hazard to continue work.
 
-### 1:10–1:40 — Verified hybrid inference
+### 1:10–1:40 — Honest inference status
 
-Run the prepared local diagnosis and show the `LOCAL` badge. Then run **Force Cloud Gemini Analysis** and show the `CLOUD` badge, with App Check active. Point to the recorded execution source for each result.
+On the public demo, run the prepared non-hazardous sample diagnosis and show the `DEMO RULES` badge. Open the Hybrid AI section and point out the browser capability probe and the fact that LOCAL and CLOUD remain inactive until their prerequisites are met.
 
-“Firebase AI Logic selects the actual execution route. SunFix reports only the source returned by the SDK; an unreported source remains `UNAVAILABLE`.”
+“The public preview is running deterministic, non-generative rules. SunFix does not label a fallback as Gemini. A real LOCAL or CLOUD result is shown only after the SDK returns that inference source and the Firebase/App Check setup is verified.”
 
-Only show these claims if the preflight passed. Otherwise show the actual fallback status and say the Firebase project still needs configuration.
+For a separately configured test environment, show `LOCAL` or `CLOUD` only after every preflight check above succeeds. Never stage or relabel an inference result.
 
 ### 1:40–2:20 — Evidence to repair
 
@@ -52,4 +52,4 @@ Show the 2D/3D twin fallback, FieldProof evidence origins, and offline status co
 
 ### 2:45–3:00 — Close
 
-“SunFix AI connects field evidence to accountable repair steps, with Firebase AI Logic hybrid inference, local-first workflows, and explicit safety and data provenance. Inspect smarter. Diagnose faster. Repair with evidence.”
+“SunFix AI connects simulated field evidence to reviewable repair steps, with deterministic safety checks, browser-local workflows, and explicit data provenance. Its Firebase AI Logic paths are designed to activate after project and App Check configuration. Inspect smarter. Diagnose faster. Repair with evidence.”
