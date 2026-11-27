@@ -98,13 +98,13 @@ export const DashboardView: React.FC = () => {
       >
         <div>
           <span className="text-xs font-mono-tech uppercase tracking-wider" style={{ color: TOKENS.brass }}>
-            Field Operations · Demonstration Workspace
+            Field Operations · Site Workspace
           </span>
           <h1 className="font-display text-2xl sm:text-3xl mt-1" style={{ color: TOKENS.bone }}>
             Operations <em className="italic" style={{ color: TOKENS.brass }}>command</em> center
           </h1>
           <p className="text-sm mt-1" style={{ color: TOKENS.sage }}>
-            Simulated telemetry & active diagnostic queue · {activeAsset.name}
+            Illustrative telemetry preview & diagnostic queue · {activeAsset.name}
           </p>
         </div>
 
@@ -202,7 +202,7 @@ export const DashboardView: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="font-display text-lg" style={{ color: TOKENS.bone }}>
-                Live Digital Twin — {activeAsset.name}
+                Digital Twin Model — {activeAsset.name}
               </h2>
               <p className="text-xs" style={{ color: TOKENS.sage }}>
                 Click any 3D subsystem to inspect health status or start a diagnostic workflow.
