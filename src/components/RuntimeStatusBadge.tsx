@@ -69,6 +69,7 @@ export const SyncStatusIndicator: React.FC<{
     syncing: { label: 'Syncing...', color: TOKENS.sky },
     sync_failed: { label: 'Sync failed', color: TOKENS.terracotta },
     synced: { label: 'Synced', color: TOKENS.mint },
+    local_only: { label: 'Local only', color: TOKENS.amberWarn },
   };
   const item = map[status];
   return (

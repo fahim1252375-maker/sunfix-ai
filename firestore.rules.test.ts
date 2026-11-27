@@ -16,6 +16,25 @@ test('firestore.rules enforces deny-by-default and owner-scoped authorization', 
   assert.match(rules, /createdAt\s*==\s*existing\(\)\.createdAt/);
 });
 
+test('Firebase CLI defaults live rules to the named database and isolates the default emulator config', () => {
+  const liveConfig = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'firebase.json'), 'utf8')) as {
+    firestore: Array<{ database: string; rules: string }>;
+  };
+  const emulatorConfig = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'firebase.emulator.json'), 'utf8')) as {
+    firestore: { rules: string };
+    emulators: { firestore: { port: number } };
+  };
+
+  assert.deepEqual(liveConfig.firestore, [
+    {
+      database: 'ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33',
+      rules: 'firestore.rules',
+    },
+  ]);
+  assert.equal(emulatorConfig.firestore.rules, 'firestore.rules');
+  assert.equal(emulatorConfig.emulators.firestore.port, 8080);
+});
+
 test('firestore.rules explicitly validates all blueprint collections', () => {
   const blueprint = JSON.parse(fs.readFileSync(BLUEPRINT_PATH, 'utf8')) as {
     firestore: Record<string, unknown>;
@@ -40,4 +59,50 @@ test('firestore.rules forbids unauthenticated writes and role escalation on user
   assert.match(rules, /incoming\(\)\.role\s*==\s*existing\(\)\.role/);
   assert.match(rules, /match \/copilotThreads\/\{threadId\}/);
   assert.match(rules, /isSupervisor\(\)/);
+});
+
+test('firestore.rules keeps Stop-Work cases blocked and requires a safe linked case', () => {
+  const rules = fs.readFileSync(RULES_PATH, 'utf8');
+  assert.ok(
+    rules.includes("!data.stopWork || data.status == 'safety_blocked'"),
+    'A Stop-Work diagnostic case must remain safety-blocked',
+  );
+  assert.ok(
+    rules.includes('get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.stopWork == false'),
+    'A work order cannot be marked safety-cleared while its linked case has a Stop-Work hold',
+  );
+  assert.ok(
+    rules.includes('get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.safetyHazardDetected == false'),
+    'A work order cannot be marked safety-cleared while its linked case has a reported hazard',
+  );
+  assert.ok(
+    rules.includes("!data.safetyHazardDetected || (data.stopWork && data.status == 'safety_blocked')"),
+    'A reported safety hazard must persist with a Stop-Work hold',
+  );
+});
+
+test('firestore.rules blocks incomplete or uncleared work-order completion', () => {
+  const rules = fs.readFileSync(RULES_PATH, 'utf8');
+  assert.ok(
+    rules.includes("data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps)"),
+    'Completed work orders must be safety-cleared and have every checklist step completed',
+  );
+});
+
+test('Firestore allows verified users to probe missing IDs but never read another owner\'s existing documents', () => {
+  const rules = fs.readFileSync(RULES_PATH, 'utf8');
+  for (const [collection, id] of [
+    ['assets', 'assetId'],
+    ['diagnosticCases', 'caseId'],
+    ['workOrders', 'workOrderId'],
+    ['evidenceRecords', 'evidenceId'],
+    ['serviceReports', 'reportId'],
+    ['knowledgeDocs', 'docId'],
+    ['copilotThreads', 'threadId'],
+  ]) {
+    assert.ok(
+      rules.includes(`!exists(/databases/$(database)/documents/${collection}/$(${id}))`),
+      `Missing-document existence checks must be allowed for ${collection}`,
+    );
+  }
 });

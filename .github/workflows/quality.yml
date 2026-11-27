@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - audit/sunfix-source-review
+      - audit/sunfix-hardening-2026-11-25
+      - hackathon/buildhybridai-2026-11-26
   pull_request:
     branches:
       - main
@@ -14,32 +16,90 @@ permissions:
   contents: read
 
 concurrency:
-  group: quality-\${{ github.ref }}
+  group: quality-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
-    name: Typecheck, lint, test, build
+    name: Typecheck, lint, unit, emulator, browser QA and build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
+    env:
+      VITE_FIREBASE_API_KEY: demo-api-key
+      VITE_FIREBASE_AUTH_DOMAIN: demo-sunfix-field.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: demo-sunfix-field
+      VITE_FIREBASE_APP_ID: 1:123456789:web:demo
+      VITE_USE_FIREBASE_EMULATORS: "true"
+      VITE_FIREBASE_AUTH_EMULATOR_URL: http://127.0.0.1:9099
+      VITE_FIREBASE_FIRESTORE_EMULATOR_HOST: 127.0.0.1
+      VITE_FIREBASE_FIRESTORE_EMULATOR_PORT: "8080"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: '1.4.5'
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.22.3
       - name: Install dependencies
-        run: bun install
+        run: bun install --ignore-scripts --frozen-lockfile
       - name: TypeScript check
         run: bun run lint
       - name: ESLint
         run: bun run lint:eslint
       - name: Unit and static security tests
         run: bun run test
+      - name: Firestore Emulator authorization tests
+        run: bun run test:rules
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Authenticated emulator sync, responsive and accessibility tests
+        run: bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
+      - name: Optional live Firestore CRUD and owner-isolation test
+        if: ${{ vars.SUNFIX_RUN_LIVE_FIRESTORE_TEST == 'true' }}
+        env:
+          SUNFIX_RUN_LIVE_FIRESTORE_TEST: "true"
+          SUNFIX_LIVE_TEST_EMAIL: ${{ secrets.SUNFIX_LIVE_TEST_EMAIL }}
+          SUNFIX_LIVE_TEST_PASSWORD: ${{ secrets.SUNFIX_LIVE_TEST_PASSWORD }}
+          SUNFIX_LIVE_TEST_SECOND_EMAIL: ${{ secrets.SUNFIX_LIVE_TEST_SECOND_EMAIL }}
+          SUNFIX_LIVE_TEST_SECOND_PASSWORD: ${{ secrets.SUNFIX_LIVE_TEST_SECOND_PASSWORD }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
+          VITE_FIREBASE_APPCHECK_DEBUG_TOKEN: ${{ secrets.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN }}
+          VITE_FIRESTORE_DATABASE_ID: ${{ vars.VITE_FIRESTORE_DATABASE_ID }}
+          VITE_USE_FIREBASE_EMULATORS: "false"
+        run: bun run test:e2e --grep @live-firestore --output=/tmp/sunfix-live-firestore-results
+      - name: Optional live Firebase AI Logic integration test
+        if: ${{ vars.SUNFIX_RUN_LIVE_AI_SMOKE == 'true' }}
+        env:
+          SUNFIX_RUN_LIVE_AI_SMOKE: "true"
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_RECAPTCHA_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
+          VITE_FIREBASE_APPCHECK_DEBUG_TOKEN: ${{ secrets.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN }}
+          VITE_FIRESTORE_DATABASE_ID: ${{ vars.VITE_FIRESTORE_DATABASE_ID }}
+          VITE_FIREBASE_AI_MODEL: ${{ vars.VITE_FIREBASE_AI_MODEL }}
+          VITE_USE_FIREBASE_EMULATORS: "false"
+        run: bun run test:e2e --grep @live
       - name: Production build
         run: bun run build
+      - name: Upload browser QA screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunfix-browser-qa
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

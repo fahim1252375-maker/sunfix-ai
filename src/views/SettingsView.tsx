@@ -33,6 +33,8 @@ export const SettingsView: React.FC = () => {
     toggleSimulatedOffline,
     syncQueue,
     syncStatus,
+    localStorageError,
+    cloudHydrationWarning,
     processSyncQueue,
     retrySyncItem,
     resolveSyncConflictKeepLocal,
@@ -116,6 +118,26 @@ export const SettingsView: React.FC = () => {
               }}
             >
               {authError}
+            </div>
+          )}
+
+          {localStorageError && (
+            <div role="alert" className="text-xs p-2.5 rounded-lg border" style={{
+              color: TOKENS.terracotta,
+              borderColor: TOKENS.terracotta,
+              backgroundColor: TOKENS.mossDeep,
+            }}>
+              {localStorageError}
+            </div>
+          )}
+
+          {cloudHydrationWarning && (
+            <div role="status" className="text-xs p-2.5 rounded-lg border" style={{
+              color: TOKENS.amberWarn,
+              borderColor: TOKENS.amberWarn,
+              backgroundColor: TOKENS.mossDeep,
+            }}>
+              {cloudHydrationWarning}
             </div>
           )}
 
@@ -349,7 +371,7 @@ export const SettingsView: React.FC = () => {
                           color: TOKENS.brass,
                         }}
                       >
-                        Keep Local
+                        Keep Local Draft
                       </button>
                     )}
                   </div>

@@ -70,3 +70,27 @@ test('CopilotMessageCard renders LOCAL / CLOUD badges, citation chips, and actio
   assert.match(html, /kb-inv-g04/);
   assert.match(html, /Highlight component in 3D/);
 });
+
+test('CopilotMessageCard keeps an unreported Firebase inference source distinct from demo rules', () => {
+  const msg: CopilotMessage = {
+    id: 'm3',
+    role: 'assistant',
+    text: 'Source attribution is unavailable.',
+    timestamp: '2026-11-25T10:02:00.000Z',
+    inferenceSource: 'unavailable',
+    evidenceStatus: 'needs_readings',
+    citedSourceIds: [],
+    actions: [],
+  };
+
+  const html = renderToStaticMarkup(
+    React.createElement(CopilotMessageCard, {
+      message: msg,
+      knowledgeDocs: DEMO_KNOWLEDGE_LIBRARY,
+      language: 'en',
+    }),
+  );
+
+  assert.match(html, /UNAVAILABLE/);
+  assert.doesNotMatch(html, /DEMO RULES/);
+});

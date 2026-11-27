@@ -10,6 +10,13 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidDomainEnvelope(data) {
+      return data.schemaVersion == 2
+        && data.revision is int && data.revision >= 1 && data.revision <= 1000000
+        && data.lastMutationId is string && data.lastMutationId.size() >= 1 && data.lastMutationId.size() <= 200
+        && data.domainPayload is string && data.domainPayload.size() >= 2 && data.domainPayload.size() <= 180000;
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -46,12 +53,13 @@ service cloud.firestore {
       return data.keys().hasAll([
           'id', 'ownerId', 'name', 'siteType', 'locationLabel', 'capacityKw',
           'status', 'inverterModel', 'inverterSerial', 'panelCount', 'isDemo',
-          'createdAt', 'updatedAt'
+          'createdAt', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'name', 'siteType', 'locationLabel', 'capacityKw',
           'status', 'inverterModel', 'inverterSerial', 'batteryModel',
-          'batteryCapacityKwh', 'panelCount', 'isDemo', 'createdAt', 'updatedAt'
+          'batteryCapacityKwh', 'panelCount', 'isDemo', 'createdAt', 'updatedAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == assetId
         && isValidId(data.id)
@@ -69,7 +77,8 @@ service cloud.firestore {
         && data.panelCount is number && data.panelCount >= 0 && data.panelCount <= 100000
         && data.isDemo is bool
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     function isSupervisor() {
@@ -82,13 +91,15 @@ service cloud.firestore {
       return data.keys().hasAll([
           'id', 'ownerId', 'assetId', 'componentId', 'componentType', 'title',
           'safetyHazardDetected', 'stopWork', 'priority', 'status',
-          'inferenceSource', 'assessmentSummary', 'createdAt', 'updatedAt'
+          'inferenceSource', 'assessmentSummary', 'createdAt', 'updatedAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'assetId', 'componentId', 'componentType', 'title',
           'faultCode', 'readingsSummary', 'safetyHazardDetected', 'stopWork',
           'priority', 'status', 'inferenceSource', 'assessmentSummary',
-          'reviewStatus', 'reviewNote', 'createdAt', 'updatedAt'
+          'reviewStatus', 'reviewNote', 'createdAt', 'updatedAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == caseId
         && isValidId(data.id)
@@ -102,6 +113,8 @@ service cloud.firestore {
         && (!('readingsSummary' in data) || (data.readingsSummary is string && data.readingsSummary.size() <= 500))
         && data.safetyHazardDetected is bool
         && data.stopWork is bool
+        && (!data.safetyHazardDetected || (data.stopWork && data.status == 'safety_blocked'))
+        && (!data.stopWork || data.status == 'safety_blocked')
         && data.priority in ['critical', 'high', 'medium', 'low']
         && data.status in ['open', 'investigating', 'safety_blocked', 'resolved']
         && data.inferenceSource in ['on_device', 'in_cloud', 'demo_rules', 'unavailable']
@@ -109,20 +122,21 @@ service cloud.firestore {
         && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
         && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 600))
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     function isValidWorkOrder(data, workOrderId) {
       return data.keys().hasAll([
           'id', 'ownerId', 'caseId', 'assetId', 'componentId', 'title',
           'status', 'priority', 'safetyCleared', 'completedSteps', 'totalSteps',
-          'createdAt', 'updatedAt'
+          'createdAt', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'caseId', 'assetId', 'componentId', 'title',
           'status', 'priority', 'safetyCleared', 'technicianNotes',
           'completedSteps', 'totalSteps', 'reviewStatus', 'reviewNote',
-          'createdAt', 'updatedAt'
+          'createdAt', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == workOrderId
         && isValidId(data.id)
@@ -138,20 +152,32 @@ service cloud.firestore {
         && (!('technicianNotes' in data) || (data.technicianNotes is string && data.technicianNotes.size() <= 2000))
         && data.completedSteps is number && data.completedSteps >= 0 && data.completedSteps <= 100
         && data.totalSteps is number && data.totalSteps >= 1 && data.totalSteps <= 100
+        // A cleared work order must link to an owned case whose Stop-Work hold is false.
+        && (!data.safetyCleared || (
+          exists(/databases/$(database)/documents/diagnosticCases/$(data.caseId))
+          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.ownerId == request.auth.uid
+          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.stopWork == false
+          && get(/databases/$(database)/documents/diagnosticCases/$(data.caseId)).data.safetyHazardDetected == false
+        ))
+        // A client cannot mark a work order completed unless safety is cleared and every step is complete.
+        && (data.status != 'completed' || (data.safetyCleared == true && data.completedSteps == data.totalSteps))
         && (!('reviewStatus' in data) || data.reviewStatus in ['draft', 'pending_review', 'approved', 'changes_requested'])
         && (!('reviewNote' in data) || (data.reviewNote is string && data.reviewNote.size() <= 600))
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     function isValidEvidenceRecord(data, evidenceId) {
       return data.keys().hasAll([
           'id', 'ownerId', 'caseId', 'assetId', 'componentId',
-          'evidenceType', 'originKind', 'caption', 'createdAt'
+          'evidenceType', 'originKind', 'caption', 'createdAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'caseId', 'assetId', 'componentId',
-          'evidenceType', 'originKind', 'caption', 'note', 'createdAt'
+          'evidenceType', 'originKind', 'caption', 'note', 'createdAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == evidenceId
         && isValidId(data.id)
@@ -167,17 +193,20 @@ service cloud.firestore {
         && data.originKind in ['original_evidence', 'simulated_demo_evidence', 'ai_explanatory_text']
         && data.caption is string && data.caption.size() >= 1 && data.caption.size() <= 180
         && (!('note' in data) || (data.note is string && data.note.size() <= 1200))
-        && data.createdAt is timestamp;
+        && data.createdAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     function isValidServiceReport(data, reportId) {
       return data.keys().hasAll([
           'id', 'ownerId', 'caseId', 'assetId', 'reportCode',
-          'title', 'status', 'summary', 'isSimulated', 'createdAt'
+          'title', 'status', 'summary', 'isSimulated', 'createdAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'caseId', 'assetId', 'reportCode',
-          'title', 'status', 'summary', 'isSimulated', 'canonicalHash', 'createdAt'
+          'title', 'status', 'summary', 'isSimulated', 'canonicalHash', 'createdAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == reportId
         && isValidId(data.id)
@@ -191,17 +220,19 @@ service cloud.firestore {
         && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 2000
         && data.isSimulated is bool
         && (!('canonicalHash' in data) || (data.canonicalHash is string && data.canonicalHash.size() == 64))
-        && data.createdAt is timestamp;
+        && data.createdAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     function isValidKnowledgeDoc(data, docId) {
       return data.keys().hasAll([
           'id', 'ownerId', 'title', 'publisher', 'category',
-          'summary', 'verifiedDate', 'createdAt'
+          'summary', 'verifiedDate', 'createdAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'title', 'publisher', 'category',
-          'faultCode', 'summary', 'sourceUrl', 'verifiedDate', 'createdAt'
+          'faultCode', 'summary', 'sourceUrl', 'verifiedDate', 'createdAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == docId
         && isValidId(data.id)
@@ -214,17 +245,18 @@ service cloud.firestore {
         && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 2000
         && (!('sourceUrl' in data) || (data.sourceUrl is string && data.sourceUrl.size() <= 300))
         && data.verifiedDate is string && data.verifiedDate.size() >= 4 && data.verifiedDate.size() <= 40
-        && data.createdAt is timestamp;
+        && data.createdAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     function isValidCopilotThread(data, threadId) {
       return data.keys().hasAll([
           'id', 'ownerId', 'title', 'language', 'messageCount',
-          'lastMessagePreview', 'createdAt', 'updatedAt'
+          'lastMessagePreview', 'createdAt', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.keys().hasOnly([
           'id', 'ownerId', 'title', 'language', 'messageCount',
-          'lastMessagePreview', 'createdAt', 'updatedAt'
+          'lastMessagePreview', 'createdAt', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
         && data.id == threadId
         && isValidId(data.id)
@@ -235,7 +267,8 @@ service cloud.firestore {
         && data.messageCount is number && data.messageCount >= 0 && data.messageCount <= 500
         && data.lastMessagePreview is string && data.lastMessagePreview.size() >= 1 && data.lastMessagePreview.size() <= 500
         && data.createdAt is timestamp
-        && data.updatedAt is timestamp;
+        && data.updatedAt is timestamp
+        && isValidDomainEnvelope(data);
     }
 
     match /users/{userId} {
@@ -259,13 +292,17 @@ service cloud.firestore {
     }
 
     match /assets/{assetId} {
-      allow get: if isValidId(assetId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(assetId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/assets/$(assetId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(assetId)
         && isVerifiedUser()
         && isValidAsset(incoming(), assetId)
         && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && incoming().updatedAt == request.time
+        && incoming().revision == 1;
       allow update: if isValidId(assetId)
         && isOwnerId(existing().ownerId)
         && isValidAsset(incoming(), assetId)
@@ -276,19 +313,24 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'name', 'siteType', 'locationLabel', 'capacityKw', 'status',
           'inverterModel', 'inverterSerial', 'batteryModel', 'batteryCapacityKwh',
-          'panelCount', 'updatedAt'
-        ]);
+          'panelCount', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
+        ])
+        && incoming().revision == (('revision' in existing()) ? existing().revision + 1 : 1);
       allow delete: if isValidId(assetId) && isOwnerId(existing().ownerId);
     }
 
     match /diagnosticCases/{caseId} {
-      allow get: if isValidId(caseId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(caseId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/diagnosticCases/$(caseId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(caseId)
         && isVerifiedUser()
         && isValidDiagnosticCase(incoming(), caseId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
+        && incoming().revision == 1
         && exists(/databases/$(database)/documents/assets/$(incoming().assetId))
         && get(/databases/$(database)/documents/assets/$(incoming().assetId)).data.ownerId == request.auth.uid;
       allow update: if isValidId(caseId)
@@ -301,20 +343,26 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly([
-          'status', 'priority', 'assessmentSummary', 'reviewStatus', 'reviewNote', 'updatedAt'
+          'status', 'priority', 'assessmentSummary', 'reviewStatus', 'reviewNote', 'updatedAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
+        && incoming().revision == (('revision' in existing()) ? existing().revision + 1 : 1)
         && (!('reviewStatus' in incoming()) || incoming().reviewStatus in ['draft', 'pending_review'] || isSupervisor());
       allow delete: if isValidId(caseId) && isOwnerId(existing().ownerId);
     }
 
     match /workOrders/{workOrderId} {
-      allow get: if isValidId(workOrderId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(workOrderId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/workOrders/$(workOrderId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(workOrderId)
         && isVerifiedUser()
         && isValidWorkOrder(incoming(), workOrderId)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
+        && incoming().revision == 1
         && exists(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId))
         && get(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId)).data.ownerId == request.auth.uid
         && exists(/databases/$(database)/documents/assets/$(incoming().assetId))
@@ -330,19 +378,25 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly([
-          'status', 'priority', 'safetyCleared', 'technicianNotes', 'completedSteps', 'reviewStatus', 'reviewNote', 'updatedAt'
+          'status', 'priority', 'safetyCleared', 'technicianNotes', 'completedSteps', 'totalSteps',
+          'reviewStatus', 'reviewNote', 'updatedAt', 'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
         ])
+        && incoming().revision == (('revision' in existing()) ? existing().revision + 1 : 1)
         && (!('reviewStatus' in incoming()) || incoming().reviewStatus in ['draft', 'pending_review'] || isSupervisor());
       allow delete: if isValidId(workOrderId) && isOwnerId(existing().ownerId);
     }
 
     match /evidenceRecords/{evidenceId} {
-      allow get: if isValidId(evidenceId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(evidenceId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/evidenceRecords/$(evidenceId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(evidenceId)
         && isVerifiedUser()
         && isValidEvidenceRecord(incoming(), evidenceId)
         && incoming().createdAt == request.time
+        && incoming().revision == 1
         && exists(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId))
         && get(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId)).data.ownerId == request.auth.uid;
       allow update: if false;
@@ -350,12 +404,16 @@ service cloud.firestore {
     }
 
     match /serviceReports/{reportId} {
-      allow get: if isValidId(reportId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(reportId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/serviceReports/$(reportId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(reportId)
         && isVerifiedUser()
         && isValidServiceReport(incoming(), reportId)
         && incoming().createdAt == request.time
+        && incoming().revision == 1
         && exists(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId))
         && get(/databases/$(database)/documents/diagnosticCases/$(incoming().caseId)).data.ownerId == request.auth.uid;
       allow update: if false;
@@ -363,24 +421,32 @@ service cloud.firestore {
     }
 
     match /knowledgeDocs/{docId} {
-      allow get: if isValidId(docId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(docId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/knowledgeDocs/$(docId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(docId)
         && isVerifiedUser()
         && isValidKnowledgeDoc(incoming(), docId)
-        && incoming().createdAt == request.time;
+        && incoming().createdAt == request.time
+        && incoming().revision == 1;
       allow update: if false;
       allow delete: if isValidId(docId) && isOwnerId(existing().ownerId);
     }
 
     match /copilotThreads/{threadId} {
-      allow get: if isValidId(threadId) && isOwnerId(existing().ownerId);
+      allow get: if isValidId(threadId)
+        && isVerifiedUser()
+        && (!exists(/databases/$(database)/documents/copilotThreads/$(threadId))
+          || resource.data.ownerId == request.auth.uid);
       allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
       allow create: if isValidId(threadId)
         && isVerifiedUser()
         && isValidCopilotThread(incoming(), threadId)
         && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && incoming().updatedAt == request.time
+        && incoming().revision == 1;
       allow update: if isValidId(threadId)
         && isOwnerId(existing().ownerId)
         && isValidCopilotThread(incoming(), threadId)
@@ -389,8 +455,10 @@ service cloud.firestore {
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly([
-          'title', 'language', 'messageCount', 'lastMessagePreview', 'updatedAt'
-        ]);
+          'title', 'language', 'messageCount', 'lastMessagePreview', 'updatedAt',
+          'schemaVersion', 'revision', 'lastMutationId', 'domainPayload'
+        ])
+        && incoming().revision == (('revision' in existing()) ? existing().revision + 1 : 1);
       allow delete: if isValidId(threadId) && isOwnerId(existing().ownerId);
     }
   }

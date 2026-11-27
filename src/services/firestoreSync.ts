@@ -1,8 +1,10 @@
 import {
   collection,
+  deleteField,
   doc,
+  getCountFromServer,
   getDoc,
-  getDocs,
+  runTransaction,
   query,
   serverTimestamp,
   setDoc,
@@ -21,9 +23,95 @@ import type {
   WorkOrder,
 } from '../types/sunfix';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { encodeDomainPayload, type CloudEntityType, FIRESTORE_SCHEMA_VERSION } from './firestoreWorkspace';
 
 function safeId(raw: string): string {
   return raw.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 128) || 'id-0';
+}
+
+function versionedPayload(type: CloudEntityType, payload: unknown, uid: string, revision: number, mutationId: string) {
+  return {
+    schemaVersion: FIRESTORE_SCHEMA_VERSION,
+    revision,
+    lastMutationId: mutationId,
+    domainPayload: encodeDomainPayload(type, payload, uid),
+  };
+}
+
+function buildWireFields(item: SyncQueueItem, uid: string, docId: string): Record<string, unknown> {
+  if (item.entityType === 'asset') {
+    const asset = item.payload as Asset;
+    return {
+      id: docId, ownerId: uid, name: asset.name.slice(0, 140), siteType: asset.siteType,
+      locationLabel: asset.locationLabel.slice(0, 140), capacityKw: Math.max(0, Math.min(100000, asset.capacityKw)),
+      status: asset.status, inverterModel: asset.inverterModel.slice(0, 120), inverterSerial: asset.inverterSerial.slice(0, 80),
+      ...(asset.batteryModel ? { batteryModel: asset.batteryModel.slice(0, 120) } : {}),
+      ...(typeof asset.batteryCapacityKwh === 'number' ? { batteryCapacityKwh: Math.max(0, Math.min(100000, asset.batteryCapacityKwh)) } : {}),
+      panelCount: Math.max(0, Math.min(100000, asset.panelCount)), isDemo: Boolean(asset.isDemo),
+    };
+  }
+  if (item.entityType === 'case') {
+    const diagnosticCase = item.payload as DiagnosticCase;
+    return {
+      id: docId, ownerId: uid, assetId: safeId(diagnosticCase.assetId), componentId: safeId(diagnosticCase.componentId),
+      componentType: diagnosticCase.componentType, title: diagnosticCase.title.slice(0, 180),
+      faultCode: (diagnosticCase.faultCode || '').slice(0, 40),
+      readingsSummary: diagnosticCase.readings.map((reading) => `${reading.label}: ${reading.value} ${reading.unit}`).join('; ').slice(0, 500),
+      safetyHazardDetected: Boolean(diagnosticCase.safetyHazardDetected), stopWork: Boolean(diagnosticCase.stopWork),
+      priority: diagnosticCase.priority, status: diagnosticCase.status,
+      inferenceSource: diagnosticCase.inferenceRecord.inferenceSource,
+      assessmentSummary: diagnosticCase.assessment.summary.slice(0, 2000),
+      ...(diagnosticCase.reviewStatus ? { reviewStatus: diagnosticCase.reviewStatus } : {}),
+      ...(diagnosticCase.reviewNote ? { reviewNote: diagnosticCase.reviewNote.slice(0, 600) } : {}),
+    };
+  }
+  if (item.entityType === 'workOrder') {
+    const workOrder = item.payload as WorkOrder;
+    const totalSteps = Math.max(1, Math.min(100, workOrder.tasks.length));
+    return {
+      id: docId, ownerId: uid, caseId: safeId(workOrder.caseId), assetId: safeId(workOrder.assetId),
+      componentId: safeId(workOrder.componentId), title: workOrder.title.slice(0, 180), status: workOrder.status,
+      priority: workOrder.priority, safetyCleared: Boolean(workOrder.safetyCleared),
+      technicianNotes: (workOrder.technicianNotes || '').slice(0, 2000),
+      completedSteps: workOrder.tasks.filter((task) => task.status === 'completed').length,
+      totalSteps,
+      ...(workOrder.reviewStatus ? { reviewStatus: workOrder.reviewStatus } : {}),
+      ...(workOrder.reviewNote ? { reviewNote: workOrder.reviewNote.slice(0, 600) } : {}),
+    };
+  }
+  if (item.entityType === 'evidence') {
+    const evidence = item.payload as EvidenceRecord;
+    return {
+      id: docId, ownerId: uid, caseId: safeId(evidence.caseId), assetId: safeId(evidence.assetId),
+      componentId: safeId(evidence.componentId), evidenceType: evidence.evidenceType, originKind: evidence.originKind,
+      caption: evidence.caption.slice(0, 180), note: (evidence.note || '').slice(0, 1200),
+    };
+  }
+  if (item.entityType === 'report') {
+    const report = item.payload as ServiceReport;
+    return {
+      id: docId, ownerId: uid, caseId: safeId(report.caseId), assetId: safeId(report.assetId),
+      reportCode: report.reportCode.slice(0, 40), title: report.title.slice(0, 180), status: report.status,
+      summary: report.summary.slice(0, 2000), isSimulated: Boolean(report.isSimulated),
+      ...(report.canonicalHash ? { canonicalHash: report.canonicalHash.slice(0, 64) } : {}),
+    };
+  }
+  if (item.entityType === 'knowledge') {
+    const source = item.payload as KnowledgeSource;
+    return {
+      id: docId, ownerId: uid, title: source.title.slice(0, 180), publisher: source.publisher.slice(0, 120),
+      category: source.category, faultCode: (source.faultCode || '').slice(0, 40),
+      summary: source.guidance.slice(0, 2000), sourceUrl: (source.documentUrl || '').slice(0, 300),
+      verifiedDate: source.verifiedDate.slice(0, 40),
+    };
+  }
+  const thread = item.payload as CopilotThread;
+  const lastMessage = thread.messages[thread.messages.length - 1];
+  return {
+    id: docId, ownerId: uid, title: thread.title.slice(0, 180), language: thread.language,
+    messageCount: Math.max(0, Math.min(500, thread.messages.length)),
+    lastMessagePreview: (lastMessage?.text || 'Empty thread').slice(0, 500),
+  };
 }
 
 export async function upsertUserProfileInFirestore(profile: {
@@ -62,230 +150,81 @@ export async function upsertUserProfileInFirestore(profile: {
 export async function syncQueueItemToFirestore(
   item: SyncQueueItem,
   uid: string,
-): Promise<{ status: 'synced' | 'conflict' | 'failed'; error?: string }> {
+): Promise<{ status: 'synced' | 'conflict' | 'failed' | 'local_only'; error?: string; remoteSnapshot?: unknown; revision?: number }> {
   if (!auth.currentUser || auth.currentUser.uid !== uid || !auth.currentUser.emailVerified) {
     return { status: 'failed', error: 'Verified Google sign-in required for cloud sync.' };
+  }
+
+  if (item.operation !== 'upsert') return { status: 'failed', error: 'Delete replay is disabled until a user-confirmed deletion workflow exists.' };
+
+  const rawPayload = item.payload && typeof item.payload === 'object'
+    ? item.payload as Record<string, unknown>
+    : {};
+  if (rawPayload.isDemo === true || rawPayload.isDemoPack === true || rawPayload.isSimulated === true
+    || rawPayload.ownerId === 'demo-user' || rawPayload.originKind === 'simulated_demo_evidence') {
+    return { status: 'local_only', error: 'Demo or simulated records remain local and were not copied into the real account.' };
   }
 
   const docId = safeId(item.entityId);
 
   try {
-    if (item.entityType === 'asset') {
-      const a = item.payload as Asset;
-      const ref = doc(db, 'assets', docId);
-      const snap = await getDoc(ref);
-      const payload = {
+    const collectionByType: Record<SyncQueueItem['entityType'], string> = {
+      asset: 'assets', case: 'diagnosticCases', workOrder: 'workOrders', evidence: 'evidenceRecords',
+      report: 'serviceReports', knowledge: 'knowledgeDocs', copilotThread: 'copilotThreads',
+    };
+    const type = item.entityType as CloudEntityType;
+    const ref = doc(db, collectionByType[item.entityType], docId);
+    const payloadJson = encodeDomainPayload(type, item.payload, uid);
+    const mutationId = item.mutationId || item.id;
+    const fields = buildWireFields(item, uid, docId);
+    const updateAllowed = ['asset', 'case', 'workOrder', 'copilotThread'].includes(item.entityType);
+    return await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      const expectedRevision = item.baseRevision ?? 0;
+      if (snapshot.exists()) {
+        const remote = snapshot.data();
+        const remoteRevision = Number.isInteger(remote.revision) ? remote.revision as number : 0;
+        if (remote.lastMutationId === mutationId) return { status: 'synced', revision: remoteRevision };
+        if (remote.ownerId !== uid) return { status: 'conflict', error: 'The target document belongs to another account.' };
+        if (expectedRevision !== remoteRevision) {
+          return { status: 'conflict', error: 'The cloud record changed after this local draft was created.', remoteSnapshot: remote };
+        }
+        if (!updateAllowed) return { status: 'conflict', error: 'This cloud record is immutable; the local copy was preserved.', remoteSnapshot: remote };
+        if (item.entityType === 'case' && remote.status === 'resolved') {
+          return { status: 'conflict', error: 'The cloud case is resolved; the local draft was preserved.', remoteSnapshot: remote };
+        }
+        if (item.entityType === 'workOrder' && remote.status === 'completed') {
+          return { status: 'conflict', error: 'The cloud work order is already completed; the local draft was preserved.', remoteSnapshot: remote };
+        }
+        const revision = remoteRevision + 1;
+        transaction.update(ref, { ...fields, ...versionedPayload(type, item.payload, uid, revision, mutationId), updatedAt: serverTimestamp() });
+        return { status: 'synced', revision };
+      }
+      if (expectedRevision > 0) return { status: 'conflict', error: 'The cloud record was removed after this local draft was created.' };
+      transaction.set(ref, {
         id: docId,
         ownerId: uid,
-        name: a.name.slice(0, 140),
-        siteType: a.siteType,
-        locationLabel: a.locationLabel.slice(0, 140),
-        capacityKw: Math.max(0, Math.min(100000, a.capacityKw)),
-        status: a.status,
-        inverterModel: a.inverterModel.slice(0, 120),
-        inverterSerial: a.inverterSerial.slice(0, 80),
-        ...(a.batteryModel ? { batteryModel: a.batteryModel.slice(0, 120) } : {}),
-        ...(typeof a.batteryCapacityKwh === 'number'
-          ? { batteryCapacityKwh: Math.max(0, Math.min(100000, a.batteryCapacityKwh)) }
-          : {}),
-        panelCount: Math.max(0, Math.min(100000, a.panelCount)),
-        isDemo: Boolean(a.isDemo),
+        ...fields,
+        ...versionedPayload(type, item.payload, uid, 1, mutationId),
+        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      };
-      if (!snap.exists()) {
-        await setDoc(ref, { ...payload, createdAt: serverTimestamp() });
-      } else {
-        await updateDoc(ref, {
-          name: payload.name,
-          siteType: payload.siteType,
-          locationLabel: payload.locationLabel,
-          capacityKw: payload.capacityKw,
-          status: payload.status,
-          inverterModel: payload.inverterModel,
-          inverterSerial: payload.inverterSerial,
-          panelCount: payload.panelCount,
-          updatedAt: serverTimestamp(),
-        });
-      }
-      return { status: 'synced' };
-    }
-
-    if (item.entityType === 'case') {
-      const c = item.payload as DiagnosticCase;
-      const assetId = safeId(c.assetId);
-      const ref = doc(db, 'diagnosticCases', docId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          id: docId,
-          ownerId: uid,
-          assetId,
-          componentId: safeId(c.componentId),
-          componentType: c.componentType,
-          title: c.title.slice(0, 180),
-          faultCode: (c.faultCode || '').slice(0, 40),
-          readingsSummary: c.readings
-            .map((r) => `${r.label}: ${r.value} ${r.unit}`)
-            .join('; ')
-            .slice(0, 500),
-          safetyHazardDetected: Boolean(c.safetyHazardDetected),
-          stopWork: Boolean(c.stopWork),
-          priority: c.priority,
-          status: c.status,
-          inferenceSource: c.inferenceRecord.inferenceSource,
-          assessmentSummary: c.assessment.summary.slice(0, 2000),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      } else if (snap.data().status !== 'resolved') {
-        await updateDoc(ref, {
-          status: c.status,
-          priority: c.priority,
-          assessmentSummary: c.assessment.summary.slice(0, 2000),
-          updatedAt: serverTimestamp(),
-        });
-      }
-      return { status: 'synced' };
-    }
-
-    if (item.entityType === 'workOrder') {
-      const w = item.payload as WorkOrder;
-      const ref = doc(db, 'workOrders', docId);
-      const snap = await getDoc(ref);
-      const completedSteps = w.tasks.filter((t) => t.status === 'completed').length;
-      const totalSteps = Math.max(1, w.tasks.length);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          id: docId,
-          ownerId: uid,
-          caseId: safeId(w.caseId),
-          assetId: safeId(w.assetId),
-          componentId: safeId(w.componentId),
-          title: w.title.slice(0, 180),
-          status: w.status,
-          priority: w.priority,
-          safetyCleared: Boolean(w.safetyCleared),
-          technicianNotes: (w.technicianNotes || '').slice(0, 2000),
-          completedSteps,
-          totalSteps,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        const remote = snap.data();
-        if (remote.status === 'completed' && w.status !== 'completed') {
-          return {
-            status: 'conflict',
-            error: 'Remote work order is already marked completed in Firestore.',
-          };
-        }
-        if (remote.status !== 'completed') {
-          await updateDoc(ref, {
-            status: w.status,
-            priority: w.priority,
-            safetyCleared: Boolean(w.safetyCleared),
-            technicianNotes: (w.technicianNotes || '').slice(0, 2000),
-            completedSteps,
-            updatedAt: serverTimestamp(),
-          });
-        }
-      }
-      return { status: 'synced' };
-    }
-
-    if (item.entityType === 'evidence') {
-      const ev = item.payload as EvidenceRecord;
-      const ref = doc(db, 'evidenceRecords', docId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          id: docId,
-          ownerId: uid,
-          caseId: safeId(ev.caseId),
-          assetId: safeId(ev.assetId),
-          componentId: safeId(ev.componentId),
-          evidenceType: ev.evidenceType,
-          originKind: ev.originKind,
-          caption: ev.caption.slice(0, 180),
-          note: (ev.note || '').slice(0, 1200),
-          createdAt: serverTimestamp(),
-        });
-      }
-      return { status: 'synced' };
-    }
-
-    if (item.entityType === 'report') {
-      const r = item.payload as ServiceReport;
-      const ref = doc(db, 'serviceReports', docId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          id: docId,
-          ownerId: uid,
-          caseId: safeId(r.caseId),
-          assetId: safeId(r.assetId),
-          reportCode: r.reportCode.slice(0, 40),
-          title: r.title.slice(0, 180),
-          status: r.status,
-          summary: r.summary.slice(0, 2000),
-          isSimulated: Boolean(r.isSimulated),
-          ...(r.canonicalHash ? { canonicalHash: r.canonicalHash.slice(0, 64) } : {}),
-          createdAt: serverTimestamp(),
-        });
-      }
-      return { status: 'synced' };
-    }
-
-    if (item.entityType === 'knowledge') {
-      const k = item.payload as KnowledgeSource;
-      const ref = doc(db, 'knowledgeDocs', docId);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          id: docId,
-          ownerId: uid,
-          title: k.title.slice(0, 180),
-          publisher: k.publisher.slice(0, 120),
-          category: k.category,
-          faultCode: (k.faultCode || '').slice(0, 40),
-          summary: k.guidance.slice(0, 2000),
-          sourceUrl: (k.documentUrl || '').slice(0, 300),
-          verifiedDate: k.verifiedDate.slice(0, 40),
-          createdAt: serverTimestamp(),
-        });
-      }
-      return { status: 'synced' };
-    }
-
-    if (item.entityType === 'copilotThread') {
-      const th = item.payload as CopilotThread;
-      const ref = doc(db, 'copilotThreads', docId);
-      const snap = await getDoc(ref);
-      const lastMsg = th.messages[th.messages.length - 1];
-      const payload = {
-        id: docId,
-        ownerId: uid,
-        title: th.title.slice(0, 180),
-        language: th.language,
-        messageCount: Math.max(0, Math.min(500, th.messages.length)),
-        lastMessagePreview: (lastMsg?.text || 'Empty thread').slice(0, 500),
-        updatedAt: serverTimestamp(),
-      };
-      if (!snap.exists()) {
-        await setDoc(ref, { ...payload, createdAt: serverTimestamp() });
-      } else {
-        await updateDoc(ref, payload);
-      }
-      return { status: 'synced' };
-    }
-
-    return { status: 'synced' };
+      });
+      return { status: 'synced', revision: 1 };
+    });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.toLowerCase().includes('permission')) {
+    const errorCode =
+      err && typeof err === 'object' && 'code' in err && typeof err.code === 'string'
+        ? (/^[a-z0-9/_-]{1,80}$/i.test(err.code) ? err.code : null)
+        : null;
+    if (errorCode?.toLowerCase().includes('permission')) {
       handleFirestoreError(err, OperationType.WRITE, `${item.entityType}/${docId}`);
     }
-    return { status: 'failed', error: msg };
+    return {
+      status: 'failed',
+      error: errorCode
+        ? `Cloud sync failed (${errorCode}). Check your connection and access permissions.`
+        : 'Cloud sync failed. Check your connection and Firebase configuration.',
+    };
   }
 }
 
@@ -300,17 +239,17 @@ export async function fetchUserCloudRecordCounts(uid: string): Promise<{
   }
 
   try {
-    const [aSnap, cSnap, wSnap, rSnap] = await Promise.all([
-      getDocs(query(collection(db, 'assets'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'diagnosticCases'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'workOrders'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'serviceReports'), where('ownerId', '==', uid))),
+    const [aCount, cCount, wCount, rCount] = await Promise.all([
+      getCountFromServer(query(collection(db, 'assets'), where('ownerId', '==', uid))),
+      getCountFromServer(query(collection(db, 'diagnosticCases'), where('ownerId', '==', uid))),
+      getCountFromServer(query(collection(db, 'workOrders'), where('ownerId', '==', uid))),
+      getCountFromServer(query(collection(db, 'serviceReports'), where('ownerId', '==', uid))),
     ]);
     return {
-      assets: aSnap.size,
-      cases: cSnap.size,
-      workOrders: wSnap.size,
-      reports: rSnap.size,
+      assets: aCount.data().count,
+      cases: cCount.data().count,
+      workOrders: wCount.data().count,
+      reports: rCount.data().count,
     };
   } catch (err) {
     handleFirestoreError(err, OperationType.LIST, 'assets');

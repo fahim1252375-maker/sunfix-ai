@@ -84,6 +84,8 @@ export type EvidenceOriginKind =
   | 'simulated_demo_evidence'
   | 'ai_explanatory_text';
 
+export type FilePersistenceStatus = 'local_only' | 'uploading' | 'uploaded' | 'failed';
+
 export interface UserProfile {
   uid: string;
   displayName: string;
@@ -126,6 +128,7 @@ export interface Asset {
   components: AssetComponent[];
   createdAt: string;
   updatedAt: string;
+  cloudRevision?: number;
 }
 
 export interface PossibleCause {
@@ -237,6 +240,7 @@ export interface DiagnosticCase {
   isDemo: boolean;
   createdAt: string;
   updatedAt: string;
+  cloudRevision?: number;
 }
 
 export interface KnowledgeSource {
@@ -253,6 +257,7 @@ export interface KnowledgeSource {
   verifiedDate: string;
   isDemoPack: boolean;
   isUserImported?: boolean;
+  cloudRevision?: number;
 }
 
 export interface RepairTask {
@@ -290,6 +295,7 @@ export interface WorkOrder {
   isDemo: boolean;
   createdAt: string;
   updatedAt: string;
+  cloudRevision?: number;
 }
 
 export interface GeoTag {
@@ -328,7 +334,9 @@ export interface EvidenceRecord {
   audioDataUrl?: string;
   audioDurationSec?: number;
   voiceTranscript?: string;
+  filePersistenceStatus?: FilePersistenceStatus;
   timestamp: string;
+  cloudRevision?: number;
 }
 
 export interface ServiceReport {
@@ -347,18 +355,22 @@ export interface ServiceReport {
   sourceIds: string[];
   canonicalHash?: string;
   createdAt: string;
+  cloudRevision?: number;
 }
 
 export interface SyncQueueItem {
   id: string;
+  mutationId?: string;
+  baseRevision?: number;
   entityType: 'asset' | 'case' | 'workOrder' | 'evidence' | 'report' | 'knowledge' | 'copilotThread';
   entityId: string;
   operation: 'upsert' | 'delete';
   label: string;
   payload: unknown;
-  status: 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict';
+  status: 'persisting' | 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict' | 'local_only';
   attempts: number;
   lastError?: string;
+  remoteSnapshot?: unknown;
   updatedAt: string;
 }
 
@@ -407,6 +419,7 @@ export interface CopilotThread {
   messages: CopilotMessage[];
   createdAt: string;
   updatedAt: string;
+  cloudRevision?: number;
 }
 
 export interface TelemetryPoint {

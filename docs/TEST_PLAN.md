@@ -1,36 +1,61 @@
-# SunFix Field — Verification & Test Results (V2)
+# SunFix Field — Verification and Test Plan
 
-All checks below were executed after final code edits.
+This document separates checks that passed in GitHub Actions from production checks that still require a real Firebase project. A local or emulator pass is not proof of a live production integration.
 
-## 1. Automated Unit & Security Rule Tests
-Command: `npx tsx --test src/utils/diagnosticsLogic.test.ts firestore.rules.test.ts`
-- **12 / 12 tests passed** (`0` failures):
-  1. `firestore.rules enforces deny-by-default and owner-scoped authorization` — **PASS**
-  2. `firestore.rules explicitly validates all blueprint collections` — **PASS**
-  3. `firestore.rules forbids unauthenticated writes and role escalation on users collection` — **PASS**
-  4. `Safety Gate blocks work when burning smell or smoke is reported` — **PASS**
-  5. `Priority ranking forces critical when safety hazard is present` — **PASS**
-  6. `Energy Loss Impact Calculator computes power gap and energy difference accurately` — **PASS**
-  7. `Zod parser validates structured AI output and strips unverified sourceIds` — **PASS**
-  8. `Zod parser rejects incomplete malformed JSON cleanly` — **PASS**
-  9. `runMalformedSchemaDemo rejects invalid fields and reports stripped unverified source IDs` — **PASS**
-  10. `Deterministic offline fallback enforces safety hold when hazards reported` — **PASS**
-  11. `simulateIrradianceFactor clamps 06:00-18:00 and peaks at solar noon` — **PASS**
-  12. `computeSimulatedTwinTelemetry reflects nominal, inverterFault, stringFault, and isSimulated flag` — **PASS**
+## Reproducible automated checks
 
-## 2. Security Rules Static Audit & Deployment
-- `npx eslint firestore.rules` (`@firebase/eslint-plugin-security-rules`) — **PASS (0 errors)**
-- `DeployRules` RPC against project `avid-grin-p01dl` — **DEPLOYED**
+Run from the repository root:
 
-## 3. TypeScript & Production Build
-- `npx tsc --noEmit` — **PASS (0 errors)**
-- `npm run build` (`vite build` + PWA precache generation) — **PASS**
+```sh
+bun install
+bun run lint
+bun run lint:eslint
+bun run test
+bun run test:rules
+bunx firebase-tools@15.37.0 emulators:exec --config firebase.emulator.json --only auth,firestore --project demo-sunfix-field "bun run test:e2e"
+bun run build
+```
 
-## 4. Headless Chromium Browser Verification (`playwright-cli`)
-Verified on `http://localhost:3000` at Desktop (`1440×900`) and Mobile (`390×844`):
-- V2 Editorial Landing (`/`), Fraunces typography, organic `--ink`/`--moss`/`--brass` token system, `[DEMO]` proof strip, and live Mesa Ridge 48 kWp 3D rooftop canvas — **PASS**
-- Interactive `03 · Honest Hybrid Inference Architecture` panels (`5.1`–`5.10`), live browser capability probe, and **"Run Malformed Demo Sample"** Zod rejection + stripped `fabricated-oem-manual-99x` / `unknown-nec-999` verification — **PASS**
-- Dedicated `/lifecycle/:slug` stage routing (`/lifecycle/fieldproof`) with interactive Before/After wipe slider, Inputs/Outputs, Safety Guardrails, and Knowledge IDs — **PASS**
-- Workspace (`?autostart=1`), Command Center KPIs & Recharts diurnal curve, Full 3D Digital Twin (`Explode Inverter` zoomed mechanical breakdown + `2D View` isometric SVG fallback) — **PASS**
-- 8-Step AI Diagnostic Wizard Step `07 Safety Gate` (`Visible smoke` -> immediate Stop-Work Hold) and Step `08 Run AI` submission -> honest `DEMO RULES` fallback attribution when `firebasevertexai.googleapis.com` returns 403 without Firebase Console AI Logic activation — **PASS**
-- Mobile `390×844` layout (`scrollWidth === clientWidth === 390`, clean wrapped 3D HUD controls, zero JS runtime errors) — **PASS**
+- `bun run lint`: TypeScript no-emit check.
+- `bun run lint:eslint`: ESLint.
+- `bun run test`: unit and static regression tests.
+- `bun run test:rules`: Firestore Rules Unit Testing against the Firestore Emulator.
+- `test:e2e`: Playwright desktop/mobile browser suite; run inside Auth and Firestore emulators for the authenticated sync cases.
+- `bun run build`: production Vite build.
+
+## Latest GitHub Actions verification
+
+Successful Quality checks run: [run 45807310075](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45807310075)
+
+Verified commit: `e6095de337ae9ef0d72e916ff1c3ad14c18d35a8` on `hackathon/buildhybridai-2026-11-26`.
+
+- TypeScript check — passed.
+- ESLint — passed.
+- Unit and static regression tests — **39/39 passed**.
+- Firestore Emulator authorization tests — **6/6 passed**.
+- Playwright on GitHub Actions Linux — **13 passed, 5 skipped** across desktop and mobile Chromium. This includes responsive layout, accessibility, safety Stop-Work, work-order creation, offline deterministic fallback, failed cloud-request fallback, and authenticated emulator sync. Four skips are the opt-in production App Check/AI checks across the two browser projects; one is the desktop-only provider failure smoke on mobile.
+- Production Vite build — passed.
+- Browser screenshots, traces and test report — uploaded as the `sunfix-browser-qa` artifact for the run.
+
+Download the [browser QA artifact](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45807310075). GitHub retains it for seven days.
+
+The emulator sync test creates an email-verified test identity, mounts the real `SunFixProvider`, queues an asset while offline, checks account-scoped IndexedDB state, reconnects, and verifies the Firestore write and synced queue status. This is stronger than a unit test of the low-level sync helper, but it is still an emulator test.
+
+## Not verified against the production Firebase project
+
+The successful CI run does **not** establish any of the following:
+
+1. Google sign-in enabled and tested with a real Google account on the production hostname.
+2. reCAPTCHA Enterprise App Check attestation issued successfully for the production web app and hostname.
+3. Firebase AI Logic / Gemini cloud inference succeeding in the live project.
+4. Multi-account owner isolation, production sync conflict behavior, or real-device offline recovery against the production Firestore database.
+5. Firestore rules deployed to the intended production project.
+
+To run the live checks, configure the real Firebase Web App values and App Check site key as repository Actions secrets, then set `SUNFIX_RUN_LIVE_AI_SMOKE=true` as an Actions variable. See [FIREBASE_SETUP.md](./FIREBASE_SETUP.md). Never put a private Gemini or Firebase Admin credential in a `VITE_*` variable.
+
+## Safety and evidence boundaries
+
+- Emulator authorization tests are not a production deployment.
+- Deterministic demo diagnostics, synthetic telemetry and sample evidence must remain visibly labelled as simulated.
+- A green build or browser test does not certify electrical safety, inverter interoperability, regulatory compliance or field readiness.
+- Any real electrical work remains subject to site procedures and qualified personnel.
