@@ -25,7 +25,7 @@ const WelcomeView = lazy(() => import('./views/WelcomeView').then((m) => ({ defa
 
 const WorkspaceSetupView: React.FC = () => {
   const { user, navigate } = useSunFix();
-  const firstName = user?.displayName?.trim().split(/\\s+/)[0];
+  const firstName = user?.displayName?.trim().split(/\s+/)[0];
 
   return (
     <AppShell>
