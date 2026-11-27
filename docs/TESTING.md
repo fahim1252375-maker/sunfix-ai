@@ -75,17 +75,19 @@ For the initial backend-readiness checkpoint, local validation on 2026-11-27 rep
 
 The previously pushed checkpoint on `56dd4ef` passed GitHub Actions run [45937375780](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45937375780), including typecheck, lint, unit/security checks, Firestore emulator rules, authenticated emulator sync, browser/accessibility checks, and production build. Optional live Firestore and Firebase AI Logic jobs were skipped because their live gates/credentials were not configured. The Phase 2 working tree is newer than that CI run; rerun branch CI after it is pushed. Do not treat the checkpoint run as verification of the Phase 2 changes or of live Firebase behavior.
 
-## Phase 2 reconnect-hydration regression fix (2026-11-27)
+## Phase 2 backend restoration and reconnect verification (2026-11-27)
 
-The post-review implementation separates account-scoped IndexedDB hydration from the online-only Firestore restore. A browser connectivity transition no longer reruns the account hydration effect or resets an in-progress diagnostic wizard. When verified connectivity returns, the app fetches the owner-filtered cloud pages and reconciles them against the current workspace and queue. This was added after the desktop and mobile offline-diagnosis E2E cases both exposed a reset during the offline transition.
+The signed-in workspace now restores the complete supported v2 domain payloads from owner-filtered, paginated Firestore collections. Local IndexedDB hydration is account-scoped and independent of connectivity changes, so an offline/online transition does not reset an active diagnostic workflow. On reconnect, cloud restore and reconciliation run before pending queue replay. Queue processing uses a synchronous in-flight guard; in-flight mutations are retained during reconciliation; reconciled queue snapshots are persisted in a single IndexedDB read/write transaction.
 
-Verified on the current branch head `7ee92f58e4d2436017c7e47a0b92453c7a24c1b0` by GitHub Actions [run 45997981205](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45997981205):
+The decoder validates the schema version, bounded domain payload, owner, document ID, and revision. Summary-only or otherwise incomplete legacy documents are quarantined and reported as incomplete; missing fields are not invented. Existing device copies are preserved. Local IndexedDB failures surface visibly instead of being reported as successful persistence.
+
+Verified on branch head `ef6b667f09f1f367d90ee77219b6593c1fe17ab4` by GitHub Actions [run 45999820226](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45999820226):
 
 - TypeScript check and ESLint passed.
-- Unit and static security tests: **58 passed, 0 failed**.
+- Unit and static security tests: **60 passed, 0 failed**.
 - Firestore Emulator authorization tests: **10 passed, 0 failed**.
-- Desktop/mobile browser QA and authenticated emulator sync: **12 passed, 7 skipped**. One landing-page animation assertion was flaky on its first attempt and passed on retry.
+- Authenticated offline/reconnect, responsive, and accessibility browser QA: **13 passed**. This includes the desktop and mobile offline-to-online queue replay regression.
 - Production Vite build passed.
-- Live Firestore CRUD/owner-isolation and Firebase AI Logic/App Check checks remained skipped because their opt-in credentials/configuration are not set. This run verifies emulator behaviour, not the live Firebase project.
+- Optional live Firestore CRUD/owner-isolation and Firebase AI Logic/App Check checks were skipped because their explicit live credentials/configuration were not enabled. This run verifies emulator behavior, not the live Firebase project.
 
-The v2 rules remain repository-only and have not been deployed to the named live database. No live migration, backfill, billing change, hosting deployment, or production data write was performed.
+**Live-project boundary:** the v2 rules are committed in the repository but have not been deployed to the named live Firestore database. V1 summary-only documents have not been migrated or backfilled. FieldProof image/PDF binaries remain local-only because no remote file-storage provider has been configured. No production data writes, live migration, billing change, Firebase Hosting deployment, or Vercel deployment were performed.
