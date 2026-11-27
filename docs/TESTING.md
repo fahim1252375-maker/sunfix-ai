@@ -91,3 +91,23 @@ Verified on branch head `ef6b667f09f1f367d90ee77219b6593c1fe17ab4` by GitHub Act
 - Optional live Firestore CRUD/owner-isolation and Firebase AI Logic/App Check checks were skipped because their explicit live credentials/configuration were not enabled. This run verifies emulator behavior, not the live Firebase project.
 
 **Live-project boundary:** the v2 rules are committed in the repository but have not been deployed to the named live Firestore database. V1 summary-only documents have not been migrated or backfilled. FieldProof image/PDF binaries remain local-only because no remote file-storage provider has been configured. No production data writes, live migration, billing change, Firebase Hosting deployment, or Vercel deployment were performed.
+
+## Latest handoff — 2026-11-27 (commit ce8212c)
+
+This section supersedes the earlier checkpoint status above where the recorded commit or run is older.
+
+- GitHub Actions Quality checks run 46025033327 (https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/46025033327) completed successfully for branch hackathon/buildhybridai-2026-11-26 at commit ce8212cc4445377ac4c3218b6c829748d009db56. The workflow runs TypeScript, ESLint, unit/static-security tests, Firestore Emulator rules tests, desktop/mobile Playwright + accessibility/offline/authenticated emulator sync tests, and the production build.
+- The associated pull-request workflow run 46024978079 (https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/46024978079) also completed successfully on the same commit.
+- The unconfigured-Firebase startup regression is fixed: Demo Mode initializes without a real Firebase API key and bypasses the Auth listener until actual Firebase Web App configuration is present.
+- Vercel (https://sunfix-ai.vercel.app/) and Render (https://sunfix-ai-preview.onrender.com/) both returned the app shell, rendered the React workspace, and entered Demo Workspace during browser verification. This verifies the static demo experience only.
+
+### Still not verified / not enabled
+
+- The public deployments have no real Firebase Web App environment values configured. Google sign-in, live Firestore writes/reads, cross-device sync, production reCAPTCHA Enterprise App Check, and Firebase AI Logic cloud inference are therefore not verified or enabled on those deployments.
+- The live Firestore owner-isolation and live Firebase AI/App Check Playwright tests remain opt-in and were not run. Emulator authorization and sync tests do not prove live-project behavior.
+- Firestore rules in this branch have not been deployed to the existing named production database. Compare the live Rules tab with firestore.rules and obtain a reviewed backup before any deployment.
+- FieldProof photo/PDF binaries remain browser-local; only evidence metadata is synchronized by the current Firestore model. A remote object-storage provider and associated retention/access controls are not implemented.
+- Dedicated end-to-end scenarios for multi-page restore, account switching, and conflict merging remain outstanding. No production API server or remote file-storage service is implemented.
+- The dependency audit remains 1 High, 2 Moderate, 1 Low, 0 Critical on the recorded lockfile, as detailed in SECURITY_REVIEW.md. Recheck the published package versions and rerun audits before production release; do not force out-of-range overrides.
+
+The app is currently a verified static Demo Mode deployment, not a production-ready solar operations system. Pull request #4 (https://github.com/fahim1252375-maker/sunfix-ai/pull/4) remains Draft; it has not been merged into main.
