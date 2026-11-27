@@ -110,4 +110,17 @@ This section supersedes the earlier checkpoint status above where the recorded c
 - Dedicated end-to-end scenarios for multi-page restore, account switching, and conflict merging remain outstanding. No production API server or remote file-storage service is implemented.
 - The dependency audit remains 1 High, 2 Moderate, 1 Low, 0 Critical on the recorded lockfile, as detailed in SECURITY_REVIEW.md. Recheck the published package versions and rerun audits before production release; do not force out-of-range overrides.
 
-The app is currently a verified static Demo Mode deployment, not a production-ready solar operations system. Pull request #4 (https://github.com/fahim1252375-maker/sunfix-ai/pull/4) remains Draft; it has not been merged into main.
+The app is currently a verified static Demo Mode deployment, not a production-ready solar operations system. Pull request #4 was merged into main on 2026-11-27 as commit `b9287718415a8607cbaabf0b07a3a2c4df7e8260`; the merge does not resolve the live Firebase, storage, backup, or dependency-security release gates below.
+
+## Post-merge production branch check — 2026-11-27
+
+- Pull request [#4](https://github.com/fahim1252375-maker/sunfix-ai/pull/4) is merged into `main`. Main HEAD is `b9287718415a8607cbaabf0b07a3a2c4df7e8260`.
+- GitHub Actions [main Quality checks run 46028623023](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/46028623023) completed successfully on the merge commit.
+- Vercel's current Production deployment is `READY` from that same main commit and is assigned to [sunfix-ai.vercel.app](https://sunfix-ai.vercel.app/).
+- Vercel has zero project environment variables configured. The public Vercel deployment is therefore the static Demo Mode build, not a live Firebase deployment.
+- The Render preview service still tracks `hackathon/buildhybridai-2026-11-26`; at the time of this check its deployment was on the earlier `ce8212c` commit, while the branch was one merge commit behind main. The app source is equivalent, but Render should be refreshed to the merged main revision after the current readiness patch is accepted.
+- The landing-page readiness notice and marketing metadata are being tightened so an online network connection is not described as proof that cloud inference is reachable, and App Check is not advertised as active when it is not configured.
+
+### Release decision
+
+**Demo presentation: ready. Production operations: not ready.** Do not use the demo for real technician work, electrical safety decisions, live telemetry, or customer records. Release gates remain: compatible dependency remediation; real Firebase Auth/Firestore/App Check/AI configuration and live tests; reviewed production Firestore rules deployment; durable object storage for evidence files; backup/restore and account-switch/conflict E2E coverage; privacy, retention, monitoring, and operational incident procedures.
