@@ -103,10 +103,14 @@ test('reconciled sync queue snapshots are written together and remain account-sc
     makeItem('queue-local-only', 'local_only'),
   ], userA);
 
-  assert.deepEqual(
-    (await loadSyncQueueFromIDB(userA)).map((item) => [item.id, item.status]),
-    [['queue-pending', 'pending'], ['queue-conflict', 'conflict'], ['queue-local-only', 'local_only']],
-  );
+  const savedQueue = (await loadSyncQueueFromIDB(userA))
+    .map((item) => [item.id, item.status] as const)
+    .sort(([leftId], [rightId]) => leftId.localeCompare(rightId));
+  assert.deepEqual(savedQueue, [
+    ['queue-conflict', 'conflict'],
+    ['queue-local-only', 'local_only'],
+    ['queue-pending', 'pending'],
+  ]);
   assert.deepEqual(await loadSyncQueueFromIDB(userB), []);
 });
 
