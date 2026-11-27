@@ -74,3 +74,18 @@ The signed-in app now has paginated v2 owner-filtered entity hydration and schem
 For the initial backend-readiness checkpoint, local validation on 2026-11-27 reported 42/42 unit tests and a successful Vite build. The follow-up Phase 2 changes now pass TypeScript, ESLint, **58 unit tests**, and Vite production build locally. Added unit coverage includes full-domain encode/decode, schema acceptance for representative records in each collection, owner mismatch and malformed payload rejection, local/cloud reconciliation, offline storage failures, and queue conflicts. The Firestore emulator cannot start on this host: `bunx firebase-tools@15.37.0` returns `EPERM` before emulator execution. Emulator integration rules cover malformed envelopes and monotonic revisions, but local execution awaits a working emulator runner.
 
 The previously pushed checkpoint on `56dd4ef` passed GitHub Actions run [45937375780](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45937375780), including typecheck, lint, unit/security checks, Firestore emulator rules, authenticated emulator sync, browser/accessibility checks, and production build. Optional live Firestore and Firebase AI Logic jobs were skipped because their live gates/credentials were not configured. The Phase 2 working tree is newer than that CI run; rerun branch CI after it is pushed. Do not treat the checkpoint run as verification of the Phase 2 changes or of live Firebase behavior.
+
+## Phase 2 reconnect-hydration regression fix (2026-11-27)
+
+The post-review implementation separates account-scoped IndexedDB hydration from the online-only Firestore restore. A browser connectivity transition no longer reruns the account hydration effect or resets an in-progress diagnostic wizard. When verified connectivity returns, the app fetches the owner-filtered cloud pages and reconciles them against the current workspace and queue. This was added after the desktop and mobile offline-diagnosis E2E cases both exposed a reset during the offline transition.
+
+Verified on the current branch head `7ee92f58e4d2436017c7e47a0b92453c7a24c1b0` by GitHub Actions [run 45997981205](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45997981205):
+
+- TypeScript check and ESLint passed.
+- Unit and static security tests: **58 passed, 0 failed**.
+- Firestore Emulator authorization tests: **10 passed, 0 failed**.
+- Desktop/mobile browser QA and authenticated emulator sync: **12 passed, 7 skipped**. One landing-page animation assertion was flaky on its first attempt and passed on retry.
+- Production Vite build passed.
+- Live Firestore CRUD/owner-isolation and Firebase AI Logic/App Check checks remained skipped because their opt-in credentials/configuration are not set. This run verifies emulator behaviour, not the live Firebase project.
+
+The v2 rules remain repository-only and have not been deployed to the named live database. No live migration, backfill, billing change, hosting deployment, or production data write was performed.
