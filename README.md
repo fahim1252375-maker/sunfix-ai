@@ -6,6 +6,13 @@ SunFix Field is a React + TypeScript progressive web app prototype for solar ass
 
 > **Important:** Demo assets, telemetry, fault scenarios, AI explanations, and generated evidence are simulated unless explicitly connected to verified live systems. Do not use demo output as electrical safety advice or as a substitute for a qualified technician's inspection.
 
+## Live demos
+
+- **Vercel:** https://sunfix-ai.vercel.app/
+- **Render:** https://sunfix-ai-preview.onrender.com/
+
+Open either deployment and select **Enter Demo Workspace**. These links currently run in Demo Mode with simulated sample data and browser-local persistence. Real Google sign-in, cross-device Firestore sync, Firebase AI Logic cloud inference, and production App Check are not enabled until the intended Firebase project is configured and verified. Treat all demo diagnostics as illustrative only, never as electrical safety advice.
+
 ## Features
 
 - Solar asset dashboard, lifecycle views, diagnostic wizard, repair work orders, evidence capture, knowledge library, and service reports.
