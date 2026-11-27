@@ -350,7 +350,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // A ref closes the same-tick race where two effects can start the same
   // Firestore transaction before React commits isSyncingNow=true.
   const isSyncingRef = useRef(false);
+  const cloudRestoreInFlightRef = useRef(false);
   const [isSyncingNow, setIsSyncingNow] = useState(false);
+  const [isCloudRestoring, setIsCloudRestoring] = useState(false);
   const [firestoreStatus, setFirestoreStatus] = useState<{ ok: boolean; detail: string } | null>(
     null,
   );
@@ -545,9 +547,13 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
+    if (cloudRestoreInFlightRef.current) return;
+
     let active = true;
     const scopeId = storageScopeId;
     const userId = user.uid;
+    cloudRestoreInFlightRef.current = true;
+    setIsCloudRestoring(true);
 
     (async () => {
       try {
@@ -614,11 +620,18 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 ? 'Cloud restore was not applied because its reconciled sync queue could not be saved locally. The current local workspace remains active.'
                 : 'Cloud restore is unavailable. The account-scoped local snapshot remains in use.');
         setCloudCounts(null);
+      } finally {
+        if (active) {
+          cloudRestoreInFlightRef.current = false;
+          setIsCloudRestoring(false);
+        }
       }
     })();
 
     return () => {
       active = false;
+      cloudRestoreInFlightRef.current = false;
+      setIsCloudRestoring(false);
     };
   }, [authReady, effectiveOnline, hydratedScopeId, storageScopeId, user?.uid, user?.emailVerified]);
 
@@ -725,7 +738,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const processSyncQueue = useCallback(async () => {
-    if (!authReady || !effectiveOnline || isSyncingRef.current) return;
+    if (!authReady || !effectiveOnline || cloudRestoreInFlightRef.current || isSyncingRef.current) return;
     const pendingItems = syncQueue.filter((q) => q.status === 'pending'
       || (q.status === 'failed' && q.attempts < MAX_SYNC_ATTEMPTS
         && !q.lastError?.startsWith('Local persistence failed')));
@@ -822,10 +835,10 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Automatic sync when connectivity returns
   useEffect(() => {
-    if (effectiveOnline && syncQueue.some((q) => q.status === 'pending')) {
+    if (effectiveOnline && !isCloudRestoring && syncQueue.some((q) => q.status === 'pending')) {
       processSyncQueue();
     }
-  }, [effectiveOnline, processSyncQueue, syncQueue]);
+  }, [effectiveOnline, isCloudRestoring, processSyncQueue, syncQueue]);
 
   const retrySyncItem = useCallback(
     async (itemId: string) => {
