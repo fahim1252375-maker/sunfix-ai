@@ -84,11 +84,11 @@ export const HybridAISection: React.FC = () => {
               03 · Honest Hybrid Inference Architecture
             </div>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl leading-[1.08]" style={{ color: TOKENS.bone }}>
-              <EditorialHeadline text="Every inference source is *verified*, never simulated." />
+              <EditorialHeadline text="Inference provenance is *explicit*, never invented." />
             </h2>
           </div>
           <div className="lg:col-span-4 text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
-            SunFix reads <span className="font-mono-tech" style={{ color: TOKENS.bone }}>result.response.inferenceSource</span> directly from the Firebase AI Logic Web SDK—distinguishing local Gemini Nano, Cloud Gemini, and offline rules honestly.
+            When Firebase AI Logic is configured, SunFix reads <span className="font-mono-tech" style={{ color: TOKENS.bone }}>result.response.inferenceSource</span> directly from the SDK. Without an available provider, it records the deterministic <span className="font-mono-tech" style={{ color: TOKENS.bone }}>DEMO RULES</span> fallback instead of claiming a LOCAL or CLOUD result.
           </div>
         </div>
 
@@ -154,7 +154,7 @@ export const HybridAISection: React.FC = () => {
                 },
                 {
                   label: 'Network & Effective Mode',
-                  value: effectiveOnline ? 'Online (Cloud fallback reachable)' : 'Offline Mode Active',
+                  value: effectiveOnline ? 'Online (network available)' : 'Offline Mode Active',
                   ok: effectiveOnline,
                 },
               ].map((row) => (
