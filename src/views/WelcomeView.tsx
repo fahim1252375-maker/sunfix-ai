@@ -179,8 +179,8 @@ export const WelcomeView: React.FC = () => {
               {!firebaseConfigured
                 ? 'Account access is being connected. The rooftop model and example records on this page are provided for preview.'
                 : appCheckStatus.state === 'active_enterprise'
-                  ? 'Google account access is available. Cloud security checks are active; the rooftop model and example records shown here are illustrative.'
-                  : 'Google account access is available. Cloud sync and AI services are awaiting security verification; the rooftop model and example records shown here are illustrative.'}
+                  ? 'The account provider is configured and app security checks are active. The rooftop model and example records shown here are illustrative.'
+                  : 'Account sign-in is configured. Cloud sync and AI services are awaiting security verification; the rooftop model and example records shown here are illustrative.'}
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
