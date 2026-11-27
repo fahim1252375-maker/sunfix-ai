@@ -10,6 +10,7 @@ import {
   loadSyncQueueFromIDB,
   loadWorkspaceFromIDB,
   saveSyncQueueItemToIDB,
+  saveSyncQueueItemsToIDB,
   saveWorkspaceToIDB,
 } from './offlineStore';
 
@@ -79,6 +80,34 @@ test('IndexedDB sync queues remain isolated and clearing one account does not er
 
   assert.deepEqual(await loadSyncQueueFromIDB(userA), []);
   assert.deepEqual((await loadSyncQueueFromIDB(userB)).map((item) => item.id), ['queue-b']);
+});
+
+test('reconciled sync queue snapshots are written together and remain account-scoped', async () => {
+  const userA = getStorageScopeId('reconcile-a');
+  const userB = getStorageScopeId('reconcile-b');
+  const makeItem = (id: string, status: SyncQueueItem['status']): SyncQueueItem => ({
+    id,
+    entityType: 'asset',
+    entityId: id,
+    operation: 'upsert',
+    label: id,
+    payload: { id },
+    status,
+    attempts: 0,
+    updatedAt: '2026-11-27T00:00:00.000Z',
+  });
+
+  await saveSyncQueueItemsToIDB([
+    makeItem('queue-pending', 'pending'),
+    makeItem('queue-conflict', 'conflict'),
+    makeItem('queue-local-only', 'local_only'),
+  ], userA);
+
+  assert.deepEqual(
+    (await loadSyncQueueFromIDB(userA)).map((item) => [item.id, item.status]),
+    [['queue-pending', 'pending'], ['queue-conflict', 'conflict'], ['queue-local-only', 'local_only']],
+  );
+  assert.deepEqual(await loadSyncQueueFromIDB(userB), []);
 });
 
 test('IndexedDB unavailability rejects reads and writes instead of silently reporting success', async () => {
