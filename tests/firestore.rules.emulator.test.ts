@@ -67,6 +67,10 @@ function assetRecord(ownerId = OWNER_UID) {
     inverterSerial: 'TEST-INV-001',
     panelCount: 120,
     isDemo: false,
+    schemaVersion: 2,
+    revision: 1,
+    lastMutationId: 'asset-mutation-1',
+    domainPayload: '{}',
     createdAt: now,
     updatedAt: now,
   };
@@ -89,6 +93,10 @@ function diagnosticCaseRecord(ownerId = OWNER_UID, stopWork = false) {
     assessmentSummary: 'Emulator fixture; not a real diagnostic result.',
     createdAt: now,
     updatedAt: now,
+    schemaVersion: 2,
+    revision: 1,
+    lastMutationId: 'case-mutation-1',
+    domainPayload: '{}',
   };
 }
 
@@ -122,6 +130,10 @@ function workOrderPayload(options: {
     safetyCleared: options.safetyCleared ?? true,
     completedSteps: options.completedSteps ?? 0,
     totalSteps: options.totalSteps ?? 2,
+    schemaVersion: 2,
+    revision: 1,
+    lastMutationId: 'work-order-mutation-1',
+    domainPayload: '{}',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
@@ -165,6 +177,33 @@ test('unverified accounts cannot create cloud records', async () => {
       updatedAt: serverTimestamp(),
     }),
   );
+});
+
+test('domain envelopes reject invalid versions, revisions, and oversized payloads', async () => {
+  const db = verifiedDb();
+  const invalidRevision = { ...assetRecord(), id: 'asset-revision-zero', revision: 0 };
+  await assertFails(setDoc(doc(db, 'assets', invalidRevision.id), invalidRevision));
+
+  const oversized = { ...assetRecord(), id: 'asset-too-large', domainPayload: 'x'.repeat(180001) };
+  await assertFails(setDoc(doc(db, 'assets', oversized.id), oversized));
+
+  const unsupportedVersion = { ...assetRecord(), id: 'asset-v1', schemaVersion: 1 };
+  await assertFails(setDoc(doc(db, 'assets', unsupportedVersion.id), unsupportedVersion));
+});
+
+test('asset updates require the next monotonic revision', async () => {
+  await seedOwnedAssetAndCase();
+  const db = verifiedDb();
+  const reference = doc(db, 'assets', 'asset-one');
+
+  await assertFails(updateDoc(reference, {
+    name: 'Stale update', revision: 1, lastMutationId: 'asset-stale',
+    domainPayload: '{"id":"asset-one"}', updatedAt: serverTimestamp(),
+  }));
+  await assertSucceeds(updateDoc(reference, {
+    name: 'Revision two', revision: 2, lastMutationId: 'asset-mutation-2',
+    domainPayload: '{"id":"asset-one"}', updatedAt: serverTimestamp(),
+  }));
 });
 
 test('a Stop-Work diagnostic case cannot be written as an ordinary investigating case', async () => {
@@ -277,6 +316,9 @@ test('work-order completion requires safety clearance and every checklist step',
     updateDoc(reference, {
       status: 'completed',
       completedSteps: 1,
+      revision: 2,
+      lastMutationId: 'work-order-mutation-2',
+      domainPayload: '{"id":"work-order-one","status":"completed"}',
       updatedAt: serverTimestamp(),
     }),
   );
@@ -285,6 +327,9 @@ test('work-order completion requires safety clearance and every checklist step',
     updateDoc(reference, {
       status: 'completed',
       completedSteps: 2,
+      revision: 2,
+      lastMutationId: 'work-order-mutation-2',
+      domainPayload: '{"id":"work-order-one","status":"completed"}',
       updatedAt: serverTimestamp(),
     }),
   );

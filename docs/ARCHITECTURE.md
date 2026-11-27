@@ -20,30 +20,31 @@ There is no Firebase Admin SDK, Vercel Function, standalone API server, Firebase
 
 | Operation | UI / state source | Local persistence | Firestore persistence | Authentication / enforcement |
 | --- | --- | --- | --- | --- |
-| Create/update asset | `SunFixContext.addOrUpdateAsset` | Full app object in account-scoped IndexedDB; queued | `assets/{id}`; only selected scalar fields are serialized | Verified Firebase user required by sync helper; rules enforce owner and schema |
-| Create/update diagnostic case | `submitDiagnosis`, case update actions | Full assessment, timeline and readings in IndexedDB; queued | `diagnosticCases/{id}` stores summary/status/safety subset, not complete assessment | Verified user; asset owner check on create; owner and Stop-Work validation in rules |
-| Create/update work order | Work order context actions | Full tasks/timeline/notes in IndexedDB; queued | `workOrders/{id}` stores counts and selected fields, not each task or full timeline | Verified user; owned case and asset checks; safety and completed status validation |
+| Create/update asset | `SunFixContext.addOrUpdateAsset` | Full app object in account-scoped IndexedDB; queued | `assets/{id}`; v2 bounded summary plus validated full domain payload | Verified Firebase user required by sync helper; revision and owner enforced by transaction/rules |
+| Create/update diagnostic case | `submitDiagnosis`, case update actions | Full assessment, timeline and readings in IndexedDB; queued | `diagnosticCases/{id}`; v2 full validated payload and safety summary | Verified user; asset owner check; Stop-Work and revision validation in rules |
+| Create/update work order | Work order context actions | Full tasks/timeline/notes in IndexedDB; queued | `workOrders/{id}`; v2 full validated payload and task counts | Verified user; linked owner checks; safety/completion and revision validation |
 | Save evidence metadata | `addEvidenceRecord` | Evidence object in IndexedDB | `evidenceRecords/{id}` metadata only | Verified user and owned case required by rules |
-| Save evidence photo/audio | FieldProof UI | Data URL in workspace snapshot (browser origin storage) | No file upload | Local browser only; clearing browser storage can remove the only file copy |
+| Save evidence photo/audio | FieldProof UI | Data URL in account-scoped IndexedDB; marked `local_only` | Binary stripped from Firestore v2 payload; no file provider configured | Local browser only; clearing browser storage can remove the only file copy |
 | Create service report | `generateServiceReport` | Report and canonical hash in IndexedDB | `serviceReports/{id}` selected fields and hash; no PDF blob upload | Verified user and owned case required by rules |
 | Save knowledge document | `addKnowledgeSource` | Full extracted/manual entry in IndexedDB | `knowledgeDocs/{id}` selected text metadata; no original PDF upload | Verified user; owner scoped |
-| Save Copilot thread | Copilot context actions | Full thread/messages in IndexedDB | `copilotThreads/{id}` title/language/count/last preview only | Verified user; owner scoped; message content is not uploaded |
+| Save Copilot thread | Copilot context actions | Full thread/messages in IndexedDB | `copilotThreads/{id}`; v2 full validated payload plus summary | Verified user; owner scoped; revision checked |
 | Demo and twin controls | React context / deterministic fixtures | Some values in workspace snapshot | Not all demo or visualization state is synchronized | Demo data can appear before a user has cloud records; do not treat it as cloud data |
 
-## Cloud read path limitation
+## Cloud read and restore path
 
-The current signed-in startup path initializes Firebase Auth, attempts a profile upsert, and fetches server-side aggregate record counts. It does **not** fetch and hydrate the user's Firestore assets, cases, work orders, evidence, reports, knowledge documents, or Copilot threads. The visible working set comes from demo fixtures or that account's IndexedDB snapshot. A second device therefore cannot reconstruct the complete operational records from Firestore. Counts are not evidence of a complete cloud read path.
+After verified sign-in, the app loads that UID's IndexedDB workspace and queue, then fetches owner-filtered pages for all seven domain collections. V2 payloads are validated and restored; cloud revisions are retained for the next optimistic update. Server records replace stale local records while pending edits, conflicts, and local-only drafts are preserved. Missing previously-synced records become conflicts. Legacy or invalid records are counted in a warning and are not converted into guessed domain objects. Offline and permission-denied reads keep the account-scoped local snapshot visible.
 
-The Firestore serializer intentionally stores only a subset of each application model. Implementing cross-device restoration requires a versioned serialization/migration design, complete validators and emulator tests, and live data compatibility review. Do not silently hydrate incomplete cloud documents into full domain objects.
+The live database currently has older rules/schema records. This branch's v2 writes require a separately reviewed live rules deployment. No v1 migration or backfill was run, and a cloud read of legacy metadata cannot restore fields that were never stored.
 
 ## Offline and synchronization behavior
 
 - IndexedDB database: `sunfix-field-db`, version 2; workspace keys and queued mutations are scoped by Firebase UID (or `anonymous`). Legacy unscoped queue entries are deleted during migration because ownership cannot be inferred safely.
 - A local mutation updates React state and queues an idempotent document ID. The client checks the current Auth UID before each queued write; Firestore rules re-check identity and document ownership.
-- Firestore writes use server timestamps for cloud `createdAt`/`updatedAt` fields. Existing records use `updateDoc`; creates use deterministic app record IDs, so a retry does not create a second document.
-- Cloud validation failures and remote-completed-work-order changes can remain failed/conflicted in the queue. Retry is available for failed entries. The queue and IndexedDB persistence helpers currently swallow storage errors; unavailable/evicted browser storage is therefore a data-loss risk that requires UI observability before production use.
-- “Keep Local” resolves a detected conflict only in the local queue; it does not update Firestore. Treat the remote document as authoritative until a separately reviewed reconciliation is performed.
-- There is no cloud subscription or complete cloud read-back after a write. Successful client write status confirms the serialized document write, not cross-device restoration of the full model.
+- Firestore writes use transactions, server timestamps, `baseRevision`, incrementing `revision`, and `lastMutationId` for optimistic concurrency and idempotent acknowledgement. A newer edit created during an in-flight write gets its own queue item.
+- Cloud validation failures and remote-completed-work-order changes remain failed/conflicted. Retry attempts are bounded; conflicts and local-only drafts are not silently replayed.
+- IndexedDB read/write failures now reject and are surfaced in Settings. Queue items become pending only after their initial local persistence succeeds.
+- “Keep Local Draft” retains the local payload and any remote snapshot without claiming it was synced.
+- There is no cloud subscription. Startup hydration is paginated; successful writes update local revision state, while the next app startup performs a full owner-filtered read.
 
 ## AI and safety
 
@@ -55,9 +56,7 @@ FieldProof photo data is currently a JPEG/PNG Data URL in the local workspace sn
 
 ## Readiness gaps
 
-1. Add complete, validated Firestore read/hydration and pagination before calling cloud storage a system of record for the full application model.
-2. Add observable IndexedDB failure handling and clear local-only/pending/conflict states.
-3. Configure and verify live App Check and Firebase AI Logic under project-owner permissions.
-4. Select and authorize a file-storage service before implementing remote FieldProof files.
-5. Reconcile and deploy the stronger repository rules only after a separately authorized production review; no rules were deployed in this task.
-6. Resolve the dependency advisories documented in `SECURITY_REVIEW.md` before production.
+1. Review and separately deploy the v2 repository Firestore rules before live writes; no rules were deployed in this task.
+2. Configure and verify live App Check and Firebase AI Logic under project-owner permissions.
+3. Select and authorize a file-storage service before implementing remote FieldProof files.
+4. Resolve the dependency advisories documented in `SECURITY_REVIEW.md` before production.

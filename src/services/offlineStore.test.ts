@@ -80,3 +80,22 @@ test('IndexedDB sync queues remain isolated and clearing one account does not er
   assert.deepEqual(await loadSyncQueueFromIDB(userA), []);
   assert.deepEqual((await loadSyncQueueFromIDB(userB)).map((item) => item.id), ['queue-b']);
 });
+
+test('IndexedDB unavailability rejects reads and writes instead of silently reporting success', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+  Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: undefined });
+  try {
+    await assert.rejects(loadWorkspaceFromIDB('user:unavailable'), /IndexedDB unavailable/);
+    await assert.rejects(loadSyncQueueFromIDB('user:unavailable'), /IndexedDB unavailable/);
+    await assert.rejects(saveWorkspaceToIDB({
+      assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], updatedAt: '',
+    }, 'user:unavailable'), /IndexedDB unavailable/);
+    await assert.rejects(saveSyncQueueItemToIDB({
+      id: 'offline', entityType: 'asset', entityId: 'offline', operation: 'upsert',
+      label: 'Offline', payload: {}, status: 'pending', attempts: 0, updatedAt: '',
+    }, 'user:unavailable'), /IndexedDB unavailable/);
+    await assert.rejects(clearAllIDB('user:unavailable'), /IndexedDB unavailable/);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'indexedDB', descriptor);
+  }
+});

@@ -107,3 +107,7 @@ The Firebase CLI check reports **no authorized accounts** in this local environm
 - Full and production dependency audit remain at **1 High, 2 Moderate, 1 Low, 0 Critical** as described above. The high gRPC issue is not cleared.
 
 **Readiness verdict:** partially ready for Vercel static deployment preparation only; not backend/database ready for production. See `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `BACKEND_API.md`, `VERCEL_DEPLOYMENT.md`, and `DATA_BACKUP_AND_RECOVERY.md` for the data-flow and limitations.
+
+## Phase 2 implementation note (2026-11-27)
+
+The hackathon branch now contains a schema-v2 Firestore full-domain payload codec, paginated owner-filtered hydration, optimistic revision checks, idempotent mutation IDs, and conservative cloud/local reconciliation. Local storage failures are surfaced; local-only FieldProof images and unconfigured object storage remain explicit. The repository rules were extended for v2 but live rules were not deployed, and live reads/writes were not attempted during this implementation. Existing live summary-only v1 records are reported as incomplete and cannot be reconstructed into the full domain model. Local TypeScript, ESLint, unit tests, and production build pass; local emulator startup remains blocked by a Bun/Firebase CLI `EPERM`. CI verification of this Phase 2 commit is pending its push. These changes improve implementation readiness but do not change the production readiness verdict above.

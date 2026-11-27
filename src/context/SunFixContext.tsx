@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import {
   DEMO_ASSETS,
@@ -24,6 +24,8 @@ import {
   syncQueueItemToFirestore,
   upsertUserProfileInFirestore,
 } from '../services/firestoreSync';
+import { fetchUserCloudWorkspace, type CloudWorkspaceRecords } from '../services/firestoreWorkspace';
+import { reconcileCloudWorkspace } from '../services/workspaceReconcile';
 import {
   checkInitialDeviceAvailability,
   inspectBrowserOnDeviceSupport,
@@ -42,6 +44,7 @@ import {
   saveWorkspaceToIDB,
   getStorageScopeId,
 } from '../services/offlineStore';
+import { coalesceQueuedMutation, MAX_SYNC_ATTEMPTS } from '../services/syncQueue';
 import type {
   AIInferenceRecord,
   AppLanguage,
@@ -88,7 +91,7 @@ export interface WizardDraft {
   imageEvidenceDataUrl?: string;
 }
 
-export type GlobalSyncStatus = 'online' | 'offline' | 'sync_pending' | 'syncing' | 'sync_failed' | 'synced';
+export type GlobalSyncStatus = 'online' | 'offline' | 'sync_pending' | 'syncing' | 'sync_failed' | 'synced' | 'local_only';
 
 interface SunFixContextValue {
   route: ScreenRoute;
@@ -181,6 +184,8 @@ interface SunFixContextValue {
   resolveSyncConflictKeepLocal: (itemId: string) => Promise<void>;
   appCheckStatus: AppCheckStatusInfo;
   firestoreStatus: { ok: boolean; detail: string } | null;
+  localStorageError: string | null;
+  cloudHydrationWarning: string | null;
   cloudCounts: { assets: number; cases: number; workOrders: number; reports: number } | null;
 
   // V3: Language, Adaptive Quality, Supervisor Review & SunFix Copilot
@@ -339,10 +344,14 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [lastAiWarning, setLastAiWarning] = useState<string | null>(null);
 
   const [syncQueue, setSyncQueue] = useState<SyncQueueItem[]>([]);
+  const inFlightEntityKeysRef = useRef(new Set<string>());
+  const acknowledgedRevisionsRef = useRef(new Map<string, number>());
   const [isSyncingNow, setIsSyncingNow] = useState(false);
   const [firestoreStatus, setFirestoreStatus] = useState<{ ok: boolean; detail: string } | null>(
     null,
   );
+  const [localStorageError, setLocalStorageError] = useState<string | null>(null);
+  const [cloudHydrationWarning, setCloudHydrationWarning] = useState<string | null>(null);
   const [cloudCounts, setCloudCounts] = useState<{
     assets: number;
     cases: number;
@@ -402,6 +411,8 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!authReady) return;
     let active = true;
     const scopeId = storageScopeId;
+    inFlightEntityKeysRef.current.clear();
+    acknowledgedRevisionsRef.current.clear();
     setHydratedScopeId(null);
     setAssets(DEMO_ASSETS);
     setCases(DEMO_CASES);
@@ -430,31 +441,98 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsSyncingNow(false);
 
     (async () => {
-      const [saved, queue, avail, fsStatus, caps] = await Promise.all([
-        loadWorkspaceFromIDB(scopeId),
-        loadSyncQueueFromIDB(scopeId),
+      let saved: Awaited<ReturnType<typeof loadWorkspaceFromIDB>>;
+      let queue: SyncQueueItem[];
+      try {
+        [saved, queue] = await Promise.all([
+          loadWorkspaceFromIDB(scopeId),
+          loadSyncQueueFromIDB(scopeId),
+        ]);
+        setLocalStorageError(null);
+      } catch {
+        if (!active) return;
+        setLocalStorageError('Local workspace storage could not be read. Changes are not safely persisted in this browser.');
+        return;
+      }
+      queue = queue.map((item) => item.status === 'persisting' ? { ...item, status: 'pending' } : item);
+      for (const item of queue) {
+        if (item.status === 'pending') {
+          void saveSyncQueueItemToIDB(item, scopeId).catch(() => {
+            if (active) setLocalStorageError('A recovered pending change could not be saved. Keep this tab open and resolve the storage issue.');
+          });
+        }
+      }
+      const [avail, fsStatus, caps] = await Promise.all([
         checkInitialDeviceAvailability(),
         testFirestoreConnection(),
         inspectHybridRuntimeCapabilities(effectiveOnline),
       ]);
       if (!active) return;
+      const localRecords: CloudWorkspaceRecords = saved ? {
+        assets: saved.assets || [], cases: saved.cases || [], workOrders: saved.workOrders || [],
+        evidence: saved.evidence || [], reports: saved.reports || [], knowledgeDocs: saved.knowledgeDocs || [],
+        copilotThreads: saved.copilotThreads || [],
+      } : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
+      let records = localRecords;
+      let loadedQueue = queue;
+      if (user?.emailVerified && effectiveOnline) {
+        try {
+          const cloud = await fetchUserCloudWorkspace(user.uid);
+          if (!active || auth.currentUser?.uid !== scopeId.slice('user:'.length)) return;
+          const reconciled = reconcileCloudWorkspace(cloud.records, localRecords, queue, cloud.incomplete, user.uid);
+          records = reconciled.records;
+          loadedQueue = reconciled.queue;
+          setCloudCounts(cloud.counts);
+          setCloudHydrationWarning(cloud.incomplete.length
+            ? `${cloud.incomplete.length} legacy or invalid cloud record(s) could not be fully restored. This device's matching local copies were preserved.`
+            : null);
+        } catch (error) {
+          if (!active) return;
+          const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+            ? error.code.toLowerCase() : '';
+          setCloudHydrationWarning(code.includes('permission')
+            ? 'Cloud restore was denied by Firestore rules. Local data remains available; no cloud records were changed.'
+            : code.includes('resource-exhausted')
+              ? 'Cloud restore paused because the Firebase quota was reached. Local data remains available.'
+              : code.includes('account_changed')
+                ? 'Account changed during cloud restore. The other account’s data was not applied.'
+                : 'Cloud restore is unavailable. The account-scoped local snapshot remains in use.');
+          setCloudCounts(null);
+          records = saved ? localRecords : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
+        }
+      } else if (user) {
+        records = saved ? localRecords : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
+        setCloudCounts(null);
+        setCloudHydrationWarning(user.emailVerified
+          ? 'Offline: showing this account’s local snapshot. Cloud records will refresh after reconnect.'
+          : 'Email verification is required before cloud restore or sync.');
+      } else {
+        setCloudHydrationWarning(null);
+        records = saved ? localRecords : {
+          assets: DEMO_ASSETS, cases: DEMO_CASES, workOrders: DEMO_WORK_ORDERS,
+          evidence: DEMO_EVIDENCE, reports: DEMO_REPORTS, knowledgeDocs: DEMO_KNOWLEDGE_LIBRARY,
+          copilotThreads: [makeInitialCopilotThread()],
+        };
+      }
+      if (records.assets) setAssets(records.assets);
+      if (records.cases) setCases(records.cases);
+      if (records.workOrders) setWorkOrders(records.workOrders);
+      if (records.evidence) setEvidence(records.evidence);
+      if (records.reports) setReports(records.reports);
+      if (records.knowledgeDocs) setKnowledgeDocs(records.knowledgeDocs);
       if (saved) {
-        if (saved.assets) setAssets(saved.assets);
-        if (saved.cases) setCases(saved.cases);
-        if (saved.workOrders) setWorkOrders(saved.workOrders);
-        if (saved.evidence) setEvidence(saved.evidence);
-        if (saved.reports) setReports(saved.reports);
-        if (saved.knowledgeDocs) setKnowledgeDocs(saved.knowledgeDocs);
         if (saved.inferenceHistory) setInferenceHistory(saved.inferenceHistory);
         if (saved.comparisons) setComparisons(saved.comparisons);
-        if (saved.copilotThreads?.length) {
-          setCopilotThreads(saved.copilotThreads);
-          setActiveCopilotThreadId(saved.copilotThreads[0].id);
-        }
         if (saved.language) setLanguage(saved.language);
         if (saved.qualityTier) setQualityTier(saved.qualityTier);
       }
-      setSyncQueue(queue);
+      if (records.copilotThreads.length) {
+        setCopilotThreads(records.copilotThreads);
+        setActiveCopilotThreadId(records.copilotThreads[0].id);
+      } else if (user) {
+        setCopilotThreads([]);
+      }
+      setSyncQueue(loadedQueue);
       setDeviceAvailability(avail.availability);
       setDeviceStatusDetail(avail.detail);
       setFirestoreStatus(fsStatus);
@@ -465,12 +543,12 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       active = false;
     };
-  }, [authReady, storageScopeId]);
+  }, [authReady, storageScopeId, user?.uid, user?.emailVerified, effectiveOnline]);
 
   // Persist only after the matching account workspace has finished hydration.
   useEffect(() => {
     if (!authReady || hydratedScopeId !== storageScopeId) return;
-    saveWorkspaceToIDB({
+    void saveWorkspaceToIDB({
       assets,
       cases,
       workOrders,
@@ -483,7 +561,11 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       language,
       qualityTier,
       updatedAt: new Date().toISOString(),
-    }, storageScopeId);
+    }, storageScopeId).then(() => {
+      setLocalStorageError((current) => current?.startsWith('Local workspace') ? null : current);
+    }).catch(() => {
+      setLocalStorageError('Local workspace could not be saved. Keep this browser open and export or copy unsaved work before leaving.');
+    });
   }, [
     assets,
     cases,
@@ -514,8 +596,6 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             email: nextUser.email || '',
             role: 'technician',
           });
-          const counts = await fetchUserCloudRecordCounts(nextUser.uid);
-          setCloudCounts(counts);
         } catch {
           // Non-blocking
         }
@@ -533,58 +613,122 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       label: string,
       payload: unknown,
     ) => {
+      const entityKey = `${entityType}:${entityId}`;
+      const hasPreservedConflict = inFlightEntityKeysRef.current.has(entityKey) || syncQueue.some((queued) => queued.entityType === entityType
+        && queued.entityId === entityId
+        && ['conflict', 'local_only', 'syncing'].includes(queued.status));
       const item: SyncQueueItem = {
-        id: `sync-${entityType}-${entityId}-${Date.now()}`,
+        id: `sync-${entityType}-${entityId}${hasPreservedConflict ? `-${Date.now()}` : ''}`,
+        mutationId: `${entityType}:${entityId}:${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        baseRevision: payload && typeof payload === 'object' && 'cloudRevision' in payload
+          && typeof payload.cloudRevision === 'number' ? payload.cloudRevision : 0,
         entityType,
         entityId,
         operation: 'upsert',
         label,
         payload,
-        status: 'pending',
+        status: 'persisting',
         attempts: 0,
         updatedAt: new Date().toISOString(),
       };
-      setSyncQueue((prev) => [item, ...prev.slice(0, 49)]);
-      saveSyncQueueItemToIDB(item, storageScopeId);
+      setSyncQueue((prev) => coalesceQueuedMutation(prev, item));
+      void saveSyncQueueItemToIDB(item, storageScopeId).then(async () => {
+        const pending: SyncQueueItem = { ...item, status: 'pending' };
+        setSyncQueue((prev) => prev.map((queued) => queued.id === item.id ? pending : queued));
+        await saveSyncQueueItemToIDB(pending, storageScopeId);
+        setLocalStorageError((current) => current?.startsWith('A pending change') ? null : current);
+      }).catch(() => {
+        setLocalStorageError('A pending change could not be saved to this browser. Do not close this tab until the storage issue is resolved.');
+        setSyncQueue((prev) => prev.map((queued) => queued.id === item.id
+          ? { ...queued, status: 'failed', lastError: 'Local persistence failed; this change may be lost if the page closes.' }
+          : queued));
+      });
     },
-    [storageScopeId],
+    [storageScopeId, syncQueue],
   );
 
   const processSyncQueue = useCallback(async () => {
     if (!authReady || !effectiveOnline || isSyncingNow) return;
-    const pendingItems = syncQueue.filter((q) => q.status === 'pending' || q.status === 'failed');
+    const pendingItems = syncQueue.filter((q) => q.status === 'pending'
+      || (q.status === 'failed' && q.attempts < MAX_SYNC_ATTEMPTS
+        && !q.lastError?.startsWith('Local persistence failed')));
     if (pendingItems.length === 0) return;
 
     setIsSyncingNow(true);
     try {
       for (const item of pendingItems) {
         if (storageScopeId !== getStorageScopeId(auth.currentUser?.uid)) break;
-        const syncingItem: SyncQueueItem = { ...item, status: 'syncing', attempts: item.attempts + 1 };
+        const entityKey = `${item.entityType}:${item.entityId}`;
+        inFlightEntityKeysRef.current.add(entityKey);
+        const acknowledgedRevision = acknowledgedRevisionsRef.current.get(entityKey);
+        const syncItem = acknowledgedRevision && acknowledgedRevision > (item.baseRevision ?? 0)
+          ? {
+            ...item,
+            baseRevision: acknowledgedRevision,
+            payload: item.payload && typeof item.payload === 'object'
+              ? { ...item.payload as Record<string, unknown>, cloudRevision: acknowledgedRevision }
+              : item.payload,
+          }
+          : item;
+        const syncingItem: SyncQueueItem = { ...syncItem, status: 'syncing', attempts: item.attempts + 1 };
         setSyncQueue((prev) => prev.map((q) => (q.id === item.id ? syncingItem : q)));
 
         if (!user) {
           // Local demo mode: mark as synced to local IndexedDB store with note
           const localSynced: SyncQueueItem = {
             ...syncingItem,
-            status: 'synced',
-            lastError: undefined,
+            status: 'local_only',
+            lastError: 'Saved locally only; sign in with a verified account to sync this record to Firestore.',
             updatedAt: new Date().toISOString(),
           };
           setSyncQueue((prev) => prev.map((q) => (q.id === item.id ? localSynced : q)));
-          await saveSyncQueueItemToIDB(localSynced, storageScopeId);
+          try {
+            await saveSyncQueueItemToIDB(localSynced, storageScopeId);
+          } catch {
+            setLocalStorageError('A local-only change could not be saved to this browser. Keep this tab open.');
+          }
           continue;
         }
 
-        const res = await syncQueueItemToFirestore(item, user.uid);
+        const res = await syncQueueItemToFirestore(syncItem, user.uid);
         if (storageScopeId !== getStorageScopeId(auth.currentUser?.uid)) break;
+        if (res.status === 'synced' && typeof res.revision === 'number') {
+          acknowledgedRevisionsRef.current.set(entityKey, res.revision);
+        }
+        const syncedPayload = res.status === 'synced' && typeof res.revision === 'number'
+          && item.payload && typeof item.payload === 'object'
+          ? { ...item.payload as Record<string, unknown>, cloudRevision: res.revision }
+          : item.payload;
         const updatedItem: SyncQueueItem = {
           ...syncingItem,
           status: res.status,
+          ...(res.status === 'synced' && typeof res.revision === 'number'
+            ? { baseRevision: res.revision, payload: syncedPayload }
+            : {}),
           lastError: res.error,
+          remoteSnapshot: res.remoteSnapshot,
           updatedAt: new Date().toISOString(),
         };
         setSyncQueue((prev) => prev.map((q) => (q.id === item.id ? updatedItem : q)));
-        await saveSyncQueueItemToIDB(updatedItem, storageScopeId);
+        if (res.status === 'synced' && typeof res.revision === 'number') {
+          const withRevision = <T extends { id: string }>(records: T[]): T[] => records.map((record) =>
+            record.id === item.entityId ? { ...record, cloudRevision: res.revision } : record);
+          if (item.entityType === 'asset') setAssets((prev) => withRevision(prev) as Asset[]);
+          else if (item.entityType === 'case') setCases((prev) => withRevision(prev) as DiagnosticCase[]);
+          else if (item.entityType === 'workOrder') setWorkOrders((prev) => withRevision(prev) as WorkOrder[]);
+          else if (item.entityType === 'evidence') setEvidence((prev) => withRevision(prev) as EvidenceRecord[]);
+          else if (item.entityType === 'report') setReports((prev) => withRevision(prev) as ServiceReport[]);
+          else if (item.entityType === 'knowledge') setKnowledgeDocs((prev) => withRevision(prev) as KnowledgeSource[]);
+          else setCopilotThreads((prev) => withRevision(prev) as CopilotThread[]);
+        }
+        try {
+          await saveSyncQueueItemToIDB(updatedItem, storageScopeId);
+        } catch {
+          setLocalStorageError('The cloud response could not be recorded locally. The remote write may have succeeded; this item is retained for safe retry.');
+          setSyncQueue((prev) => prev.map((queued) => queued.id === item.id
+            ? { ...queued, status: 'failed', lastError: 'Local persistence failed after cloud response; remote state must be checked before retry.' }
+            : queued));
+        }
       }
 
       if (user && storageScopeId === getStorageScopeId(auth.currentUser?.uid)) {
@@ -592,6 +736,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCloudCounts(counts);
       }
     } finally {
+      inFlightEntityKeysRef.current.clear();
       setIsSyncingNow(false);
     }
   }, [authReady, effectiveOnline, isSyncingNow, syncQueue, user, storageScopeId]);
@@ -605,33 +750,49 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const retrySyncItem = useCallback(
     async (itemId: string) => {
-      setSyncQueue((prev) =>
-        prev.map((q) => (q.id === itemId ? { ...q, status: 'pending', lastError: undefined } : q)),
-      );
-      if (effectiveOnline) {
-        setTimeout(() => {
-          processSyncQueue();
-        }, 50);
+      const item = syncQueue.find((queued) => queued.id === itemId);
+      if (!item || item.status !== 'failed') return;
+      if (item.attempts >= MAX_SYNC_ATTEMPTS) {
+        setLocalStorageError('This change reached the 8-attempt retry limit. Preserve the local and remote copies and resolve it manually.');
+        return;
+      }
+      const pending: SyncQueueItem = { ...item, status: 'pending', lastError: undefined };
+      try {
+        await saveSyncQueueItemToIDB(pending, storageScopeId);
+        setSyncQueue((prev) => prev.map((queued) => queued.id === itemId ? pending : queued));
+        setLocalStorageError((current) => current?.startsWith('Retry could not') ? null : current);
+        if (effectiveOnline) setTimeout(() => { void processSyncQueue(); }, 50);
+      } catch {
+        setLocalStorageError('Retry could not be recorded in local storage. The cloud write was not retried.');
       }
     },
-    [effectiveOnline, processSyncQueue],
+    [effectiveOnline, processSyncQueue, storageScopeId, syncQueue],
   );
 
   const resolveSyncConflictKeepLocal = useCallback(async (itemId: string) => {
-    setSyncQueue((prev) =>
-      prev.map((q) =>
-        q.id === itemId
-          ? { ...q, status: 'synced', lastError: 'Resolved locally (local snapshot preserved)' }
-          : q,
-      ),
-    );
-  }, []);
+    const item = syncQueue.find((queued) => queued.id === itemId);
+    if (!item || item.status !== 'conflict') return;
+    const preserved: SyncQueueItem = {
+      ...item,
+      status: 'local_only',
+      lastError: 'Local draft preserved. Firestore remains unchanged; remote snapshot is retained with this conflict.',
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      await saveSyncQueueItemToIDB(preserved, storageScopeId);
+      setSyncQueue((prev) => prev.map((queued) => queued.id === itemId ? preserved : queued));
+      setLocalStorageError(null);
+    } catch {
+      setLocalStorageError('Could not persist the conflict copy locally. The conflict remains unresolved.');
+    }
+  }, [storageScopeId, syncQueue]);
 
   const syncStatus: GlobalSyncStatus = useMemo(() => {
     if (!effectiveOnline) return 'offline';
     if (isSyncingNow) return 'syncing';
     if (syncQueue.some((q) => q.status === 'failed' || q.status === 'conflict')) return 'sync_failed';
     if (syncQueue.some((q) => q.status === 'pending')) return 'sync_pending';
+    if (syncQueue.some((q) => q.status === 'local_only')) return 'local_only';
     if (syncQueue.some((q) => q.status === 'synced')) return 'synced';
     return 'online';
   }, [effectiveOnline, isSyncingNow, syncQueue]);
@@ -1754,6 +1915,8 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     resolveSyncConflictKeepLocal,
     appCheckStatus,
     firestoreStatus,
+    localStorageError,
+    cloudHydrationWarning,
     cloudCounts,
     language,
     setLanguage,

@@ -6,33 +6,33 @@
 - Named Firestore database: `ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33`
 - Region: `asia-south1`
 - Rules source: repository `firestore.rules`
-- The live rules were inspected separately; no production rules were deployed.
+- Repository rules were updated for schema v2, but were not deployed to the live database.
 
-The following describes the repository's current wire documents, not the richer in-memory TypeScript models. Client IDs are sanitized to `[A-Za-z0-9_-]` and at most 128 characters. User-generated record IDs are created by the client; ownership is derived from the authenticated Firebase UID by the sync service and checked by rules. Cloud timestamps use Firestore server timestamps. Local timestamps are ISO strings.
+## Version 2 records
 
-| Collection / ID | Current wire fields | Writes / reads | Ownership / constraints |
+The sync path stores a bounded summary used by Security Rules and a validated `domainPayload` JSON string that carries the complete restorable domain record. Binary data URLs and `cloudRevision` are removed before serialization. Each document includes `id`, `ownerId` (except the shared knowledge catalog), `schemaVersion: 2`, monotonic `revision`, and an idempotent `lastMutationId`. Payloads are limited to 180,000 characters and 700,000 UTF-8 bytes to leave room below Firestore's document limit. Client IDs are sanitized to `[A-Za-z0-9_-]` and at most 128 characters.
+
+| Collection | Domain data in v2 payload | Summary validated by rules | Read / write behavior |
 | --- | --- | --- | --- |
-| `users/{uid}` | `uid`, `displayName`, `email`, `role`, `createdAt`, `updatedAt` | Profile create/update; direct profile get; no profile list | UID must match Auth UID; create role is forced to `technician`; role immutable; delete denied |
-| `assets/{assetId}` | `id`, `ownerId`, `name`, `siteType`, `locationLabel`, `capacityKw`, `status`, inverter fields, optional battery fields, `panelCount`, `isDemo`, timestamps | `setDoc` create / `updateDoc` update; owner-filtered aggregate query only | Verified email; owner immutable; schema bounds; owner can delete |
-| `diagnosticCases/{caseId}` | IDs, component/title, optional fault/readings summary, hazard/Stop-Work flags, priority/status, inference source, assessment summary, optional review fields, timestamps | Create and limited summary/status updates; counts query only | Verified email; asset must belong to owner; immutable identity/asset/createdAt; resolved cases immutable; hazards require `safety_blocked` and Stop-Work |
-| `workOrders/{workOrderId}` | IDs, title/status/priority, `safetyCleared`, optional notes, completed/total step counts, review fields, timestamps | Create and limited summary updates; counts query only | Verified email; linked case and asset must belong to owner; completion requires safety cleared and every step complete; completed orders cannot be changed |
-| `evidenceRecords/{evidenceId}` | IDs, evidence type/origin, caption, optional note, `createdAt` | Create only; aggregate listing is not currently used | Verified email; linked case must belong to owner; record is metadata only; files are absent |
-| `serviceReports/{reportId}` | IDs/report code/title/status/summary/`isSimulated`, optional canonical hash, `createdAt` | Create only; counts query only | Verified email; linked case must belong to owner; report PDF is absent |
-| `knowledgeDocs/{docId}` | ID/title/publisher/category, optional fault code/source URL, summary, verified date, `createdAt` | Create only; no cloud read/hydration | Verified email; owner scoped; original PDF absent |
-| `copilotThreads/{threadId}` | ID/title/language/message count/last message preview/timestamps | Create/update metadata; no cloud read/hydration | Verified email; owner scoped; full messages are local only |
+| `users/{uid}` | Profile fields | UID and role constraints | Direct profile get/upsert; no list |
+| `assets/{assetId}` | Components, battery/installation data, timestamps and full asset fields | Name, site, capacity, status, inverter and panel summary | Owner-filtered paginated read; create/update with revision check |
+| `diagnosticCases/{caseId}` | Readings, safety flags, assessment, causes/actions, inference, timeline and review | Linked IDs, hazard/Stop-Work state, priority/status, inference source and summary | Owner-filtered paginated read; create/update subject to safety and immutable-state rules |
+| `workOrders/{workOrderId}` | Tasks, verification, notes, timeline and review | Linked IDs, status, safety clearance and completed/total counts | Owner-filtered paginated read; create/update; completion constraints apply |
+| `evidenceRecords/{evidenceId}` | Metadata, notes, geo/audio transcript metadata and persistence status | Linked IDs, type/origin and caption | Owner-filtered paginated read; create-only; image/audio bytes remain local |
+| `serviceReports/{reportId}` | Complete report data and canonical hash | Report identity, status and summary | Owner-filtered paginated read; create-only; generated PDF remains browser-side |
+| `knowledgeDocs/{docId}` | Extracted/manual knowledge text and metadata | Title, publisher, category, source and verified date | Owner-filtered paginated read; create-only; original PDF is not stored |
+| `copilotThreads/{threadId}` | Complete messages and timestamps | Title, language, message count and last-message preview | Owner-filtered paginated read; create/update |
 
-## Missing schema coverage
+Reads fetch pages of 100 documents and apply an explicit `ownerId == uid` filter. V2 documents are decoded through entity-specific Zod schemas and checked for matching document ID and owner. Legacy, malformed, oversized, or mismatched payloads are reported as incomplete; the client does not invent missing fields. Existing local copies are preserved when a cloud record is incomplete.
 
-Several important fields from `src/types/sunfix.ts` are currently local only: asset component inventory/installation metadata; complete diagnostic readings, safety flags, assessment causes/actions and timelines; work-order tasks and verification/review history; evidence image/audio/geo files; complete report content and PDF; knowledge symptoms/safety details and source document; Copilot messages/actions/feedback. Cloud persistence must not be advertised as complete until these fields have an explicit versioned schema and tested restore path.
+## Revisions and compatibility
 
-## Queries and indexes
+The client uses Firestore transactions and `baseRevision` for optimistic concurrency. Creates begin at revision 1; updates increment exactly one revision. `lastMutationId` makes an acknowledged retry idempotent. Conflicts retain both the local payload and remote snapshot for review. Replayed deletes are disabled. Existing live v1 summary-only records cannot be restored as full domain records and are surfaced as incomplete. The live rules currently predate v2 and must be reviewed and deployed separately before v2 writes can succeed. No migration or backfill was performed.
 
-Current count path uses `getCountFromServer` for four owner equality queries on `assets.ownerId`, `diagnosticCases.ownerId`, `workOrders.ownerId`, and `serviceReports.ownerId`; it returns counts without downloading each matching document. These are single-field equality queries; no composite index is evidenced by current code. No standalone `firestore.indexes.json` is needed for the current queries. The application does not yet paginate cloud entity reads because it does not load entity lists from Firestore. Add indexes only alongside a concrete query that requires them.
+The app loads the account-scoped IndexedDB snapshot and queue first, then merges owner-filtered cloud records after verified sign-in. Pending local edits win over the fetched snapshot; server records replace stale local copies; records known to have been synced but missing remotely become conflicts. Demo fixtures are never copied into an authenticated workspace. On offline or denied reads, the matching account's local snapshot remains visible with a status warning.
 
-## Authorization and deletion
+## Authorization and indexes
 
-Repository rules default-deny unknown collections. For entity collections, verified users can query only documents whose `ownerId` equals their Auth UID. Document-ID gets allow an absent document to be checked for create but deny an existing document owned by another user. Writes cannot change `ownerId`, ID, or creation timestamp. Most deletes are owner-authorized, although no UI delete flow is currently wired for the synced entity collections.
+Rules default-deny unknown collections. Verified users may query only records owned by their Auth UID; document-ID gets can probe absent IDs without reading another owner's existing records. Owner, ID, and creation metadata are immutable where applicable. Stop-Work state, linked record ownership, and work-order completion are enforced by rules. Current list queries use a single owner equality filter with pagination; no composite index is required by the code path.
 
-## Migration policy
-
-No migration or cloud data backfill was performed. If full cloud hydration is added, use a schema version and explicit decoder with reject/quarantine handling for incomplete or unexpected documents. Keep local records intact until cloud restore is verified. Never infer an owner, role, file, or missing field from demo fixtures.
+No cloud migration, data backfill, destructive cleanup, or live rules deployment was performed.

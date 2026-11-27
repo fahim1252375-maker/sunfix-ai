@@ -20,15 +20,21 @@ import {
   connectFirestoreEmulator,
   type Firestore,
 } from 'firebase/firestore';
+// Vite supplies import.meta.env in the browser; Node-based unit tests do not.
+const runtimeEnv = import.meta.env || {};
+const isNodeTestRuntime = typeof window === 'undefined';
 const firebaseConfig = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined)?.trim() || '',
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined)?.trim() || '',
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined)?.trim() || '',
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined)?.trim() || '',
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined)?.trim() || '',
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string | undefined)?.trim() || '',
-  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined)?.trim() || '',
-  firestoreDatabaseId: (import.meta.env.VITE_FIRESTORE_DATABASE_ID as string | undefined)?.trim() || '(default)',
+  // A non-empty inert key lets Node unit tests import pure Firestore codecs
+  // without attempting a Firebase network call. Browser builds still require
+  // the actual configured key.
+  apiKey: (runtimeEnv.VITE_FIREBASE_API_KEY as string | undefined)?.trim() || (isNodeTestRuntime ? 'unit-test-api-key' : ''),
+  authDomain: (runtimeEnv.VITE_FIREBASE_AUTH_DOMAIN as string | undefined)?.trim() || '',
+  projectId: (runtimeEnv.VITE_FIREBASE_PROJECT_ID as string | undefined)?.trim() || '',
+  storageBucket: (runtimeEnv.VITE_FIREBASE_STORAGE_BUCKET as string | undefined)?.trim() || '',
+  messagingSenderId: (runtimeEnv.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined)?.trim() || '',
+  appId: (runtimeEnv.VITE_FIREBASE_APP_ID as string | undefined)?.trim() || '',
+  measurementId: (runtimeEnv.VITE_FIREBASE_MEASUREMENT_ID as string | undefined)?.trim() || '',
+  firestoreDatabaseId: (runtimeEnv.VITE_FIRESTORE_DATABASE_ID as string | undefined)?.trim() || '(default)',
 };
 
 const firebaseConfigReady = Boolean(
@@ -90,10 +96,10 @@ function initAppCheckBeforeServices(): void {
 
   // App Check debug tokens are accepted only in development builds. Vite replaces
   // import.meta.env.DEV at build time, so a production bundle cannot activate this bypass.
-  const debugEnv = import.meta.env.DEV
-    ? (import.meta.env.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN as string | undefined)
+  const debugEnv = runtimeEnv.DEV
+    ? (runtimeEnv.VITE_FIREBASE_APPCHECK_DEBUG_TOKEN as string | undefined)
     : undefined;
-  const siteKey = (import.meta.env.VITE_RECAPTCHA_SITE_KEY as string | undefined)?.trim() || '';
+  const siteKey = (runtimeEnv.VITE_RECAPTCHA_SITE_KEY as string | undefined)?.trim() || '';
 
   const debugModeEnabled = Boolean(debugEnv && debugEnv.trim().length > 0);
   if (debugModeEnabled) {
@@ -150,15 +156,15 @@ export const googleProvider = new GoogleAuthProvider();
 
 // Emulator wiring is available only in the Vite development server. Production
 // bundles can never redirect Authentication or Firestore to local emulators.
-if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
+if (runtimeEnv.DEV && runtimeEnv.VITE_USE_FIREBASE_EMULATORS === 'true') {
   const authEmulatorUrl =
-    (import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_URL as string | undefined)?.trim() ||
+    (runtimeEnv.VITE_FIREBASE_AUTH_EMULATOR_URL as string | undefined)?.trim() ||
     'http://127.0.0.1:9099';
   const firestoreHost =
-    (import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_HOST as string | undefined)?.trim() ||
+    (runtimeEnv.VITE_FIREBASE_FIRESTORE_EMULATOR_HOST as string | undefined)?.trim() ||
     '127.0.0.1';
   const firestorePort = Number(
-    (import.meta.env.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT as string | undefined)?.trim() || '8080',
+    (runtimeEnv.VITE_FIREBASE_FIRESTORE_EMULATOR_PORT as string | undefined)?.trim() || '8080',
   );
 
   if (!Number.isInteger(firestorePort) || firestorePort < 1 || firestorePort > 65535) {

@@ -69,6 +69,7 @@ export const FieldProofView: React.FC = () => {
       readingValue: readingValue.trim() || undefined,
       readingUnit: readingValue.trim() ? readingUnit.trim() : undefined,
       imageDataUrl,
+      filePersistenceStatus: imageDataUrl ? 'local_only' : undefined,
     });
     setCaption('');
     setNote('');
@@ -291,12 +292,17 @@ export const FieldProofView: React.FC = () => {
                     </div>
                   )}
                   {ev.imageDataUrl && (
-                    <img
-                      src={ev.imageDataUrl}
-                      alt={ev.caption}
-                      className="w-full max-h-44 rounded-lg border object-cover"
-                      style={{ borderColor: TOKENS.hairline }}
-                    />
+                    <>
+                      <img
+                        src={ev.imageDataUrl}
+                        alt={ev.caption}
+                        className="w-full max-h-44 rounded-lg border object-cover"
+                        style={{ borderColor: TOKENS.hairline }}
+                      />
+                      <p className="text-[11px] font-mono-tech" style={{ color: TOKENS.amberWarn }}>
+                        LOCAL ONLY · Photo is not available on another device
+                      </p>
+                    </>
                   )}
                   <div
                     className="text-[11px] font-mono-tech pt-1 border-t"
