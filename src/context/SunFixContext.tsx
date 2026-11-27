@@ -569,6 +569,23 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         );
         if (!active || auth.currentUser?.uid !== userId) return;
 
+        // Persist reconciled queue states before publishing them. In particular,
+        // conflict/local-only states must survive a reload and must not replay
+        // an outdated mutation as if it were still pending.
+        try {
+          await Promise.all(
+            reconciled.queue.map((item) => saveSyncQueueItemToIDB(item, scopeId)),
+          );
+        } catch {
+          setLocalStorageError(
+            'Cloud reconciliation could not be saved to local storage. Keep this browser open; no reconciled records or queue statuses were applied.',
+          );
+          throw Object.assign(new Error('queue_persistence_failed'), {
+            code: 'local/persistence-failed',
+          });
+        }
+        if (!active || auth.currentUser?.uid !== userId) return;
+
         setAssets(reconciled.records.assets);
         setCases(reconciled.records.cases);
         setWorkOrders(reconciled.records.workOrders);
@@ -591,7 +608,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             ? 'Cloud restore paused because the Firebase quota was reached. Local data remains available.'
             : code.includes('account_changed')
               ? 'Account changed during cloud restore. The other account’s data was not applied.'
-              : 'Cloud restore is unavailable. The account-scoped local snapshot remains in use.');
+              : code.includes('local/persistence-failed')
+                ? 'Cloud restore was not applied because its reconciled sync queue could not be saved locally. The current local workspace remains active.'
+                : 'Cloud restore is unavailable. The account-scoped local snapshot remains in use.');
         setCloudCounts(null);
       }
     })();
