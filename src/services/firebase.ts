@@ -257,7 +257,7 @@ export function handleFirestoreError(
 
 export async function signInWithGoogle(): Promise<User> {
   if (!firebaseConfigReady) {
-    throw new Error('Firebase is not configured. Copy .env.example to .env.local and add your Firebase web-app settings.');
+    throw new Error('Account sign-in is temporarily unavailable because this deployment is not connected to its Firebase project. Please contact the site administrator.');
   }
   const result = await signInWithPopup(auth, googleProvider);
   return result.user;
