@@ -10,7 +10,7 @@ const collectionByEntity: Record<CloudEntityType, keyof CloudWorkspaceRecords> =
   report: 'reports', knowledge: 'knowledgeDocs', copilotThread: 'copilotThreads',
 };
 const entityTypes: CloudEntityType[] = ['asset', 'case', 'workOrder', 'evidence', 'report', 'knowledge', 'copilotThread'];
-const preserveStatuses = new Set<string>(['persisting', 'pending', 'failed', 'conflict', 'local_only']);
+const preserveStatuses = new Set<string>(['persisting', 'pending', 'syncing', 'failed', 'conflict', 'local_only']);
 const firestoreCollectionByEntity: Record<CloudEntityType, string> = {
   asset: 'assets', case: 'diagnosticCases', workOrder: 'workOrders', evidence: 'evidenceRecords',
   report: 'serviceReports', knowledge: 'knowledgeDocs', copilotThread: 'copilotThreads',
