@@ -149,7 +149,17 @@ export const AssetsView: React.FC = () => {
   );
 
   const detailAsset = assets.find((a) => a.id === selectedAssetId) || assets[0];
-  const assetCases = cases.filter((c) => c.assetId === detailAsset.id);
+  const assetCases = detailAsset ? cases.filter((c) => c.assetId === detailAsset.id) : [];
+
+  if (route === 'asset-detail' && !detailAsset) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4 rounded-2xl border p-7" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}>
+        <h1 className="font-display text-2xl" style={{ color: TOKENS.bone }}>Installation not found</h1>
+        <p className="text-sm" style={{ color: TOKENS.sage }}>This site may have been removed from the current account. Return to your site registry to add or select an installation.</p>
+        <button type="button" onClick={() => navigate('assets')} className="rounded-lg px-4 py-2.5 text-sm font-semibold" style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>Open site registry</button>
+      </div>
+    );
+  }
 
   if (route === 'asset-detail') {
     return (
@@ -394,6 +404,27 @@ export const AssetsView: React.FC = () => {
           }}
         />
       </div>
+
+      {filteredAssets.length === 0 && (
+        <section className="rounded-2xl border px-6 py-10 sm:px-8" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline }}>
+          <div className="mx-auto max-w-xl space-y-3 text-center">
+            <h2 className="font-display text-xl sm:text-2xl" style={{ color: TOKENS.bone }}>
+              {search ? 'No matching installations' : 'Your site registry is ready'}
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+              {search
+                ? 'Try a different site name, location, or inverter model.'
+                : 'Add your first solar installation to organise its equipment, diagnostics, maintenance history, and reports in one place.'}
+            </p>
+            {!search && (
+              <button type="button" onClick={openAddModal} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold" style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>
+                <Plus className="h-4 w-4" />
+                Add your first installation
+              </button>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {filteredAssets.map((asset) => (
