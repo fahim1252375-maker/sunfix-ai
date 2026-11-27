@@ -94,7 +94,7 @@ test('account dialog offers Google, email sign-in, registration and password res
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
   await expect(dialog.getByLabel('Email address')).toBeVisible();
-  await expect(dialog.getByLabel('Password')).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: 'Password', exact: true })).toBeVisible();
 
   await dialog.getByRole('button', { name: 'Create an account' }).click();
   const signUpDialog = page.getByRole('dialog', { name: 'Create your account' });
