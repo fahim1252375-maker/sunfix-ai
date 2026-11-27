@@ -4,6 +4,10 @@ import { expect, test } from '@playwright/test';
 async function enterDiagnostics(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Enter Demo Workspace' }).click();
+  // Auth resolution hydrates the account-scoped IndexedDB workspace and briefly
+  // gates the app shell. Wait before entering the wizard so hydration cannot
+  // remount it halfway through a multi-step browser flow.
+  await expect(page.getByText(/Loading your private workspace/)).toBeHidden({ timeout: 15_000 });
   const diagnosticsLink = page.getByRole('button', { name: 'AI Diagnostics' });
   if (!(await diagnosticsLink.isVisible().catch(() => false))) {
     await page.getByRole('button', { name: 'Open navigation menu' }).click();
