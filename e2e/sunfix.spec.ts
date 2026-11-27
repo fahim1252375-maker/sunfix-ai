@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 
 async function enterDiagnostics(page: import('@playwright/test').Page) {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Enter Demo Workspace' }).click();
+  await page.getByRole('button', { name: 'Explore Workspace' }).click();
   // Auth resolution hydrates the account-scoped IndexedDB workspace and briefly
   // gates the app shell. Wait before entering the wizard so hydration cannot
   // remount it halfway through a multi-step browser flow.
@@ -20,7 +20,7 @@ test('landing page renders at desktop and mobile widths without horizontal overf
 }, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Powering smarter');
-  await expect(page.getByRole('status', { name: 'Demo environment and service readiness' })).toContainText('DEMO ENVIRONMENT');
+  await expect(page.getByRole('status', { name: 'Platform services and account readiness' })).toContainText('PLATFORM STATUS');
   const landingCopy = await page.locator('body').innerText();
   expect(landingCopy).not.toContain('App Check guarded');
   expect(landingCopy).not.toContain('Cloud fallback reachable');
@@ -62,7 +62,7 @@ test('landing page renders at desktop and mobile widths without horizontal overf
 
 test('demo workspace navigation and simulated offline mode remain usable', async ({ page }, testInfo) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Enter Demo Workspace' }).click();
+  await page.getByRole('button', { name: 'Explore Workspace' }).click();
 
   if (testInfo.project.name === 'mobile-chromium') {
     await page.getByRole('button', { name: 'Open navigation menu' }).click();
@@ -138,7 +138,7 @@ test('demo workspace navigation and simulated offline mode remain usable', async
 test('mobile navigation opens, changes route and closes', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Enter Demo Workspace' }).click();
+  await page.getByRole('button', { name: 'Explore Workspace' }).click();
 
   await page.getByRole('button', { name: 'Open navigation menu' }).click();
   await expect(page.getByRole('button', { name: 'Close navigation menu' })).toBeVisible();
