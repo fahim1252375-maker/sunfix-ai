@@ -520,7 +520,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } else if (user) {
         setCopilotThreads([]);
       }
-      setSyncQueue(loadedQueue);
+      setSyncQueue(queue);
       setDeviceAvailability(avail.availability);
       setDeviceStatusDetail(avail.detail);
       setFirestoreStatus(fsStatus);
