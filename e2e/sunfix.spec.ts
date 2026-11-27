@@ -77,7 +77,7 @@ test('account dialog offers Google, email sign-in, registration and password res
   await expect(page.getByLabel('Full name')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Already registered? Sign in' }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).last().click();
   await expect(page.getByRole('dialog', { name: 'Welcome back' })).toBeVisible();
   await page.getByRole('button', { name: 'Forgot password?' }).click();
   await expect(page.getByRole('dialog', { name: 'Reset your password' })).toBeVisible();
