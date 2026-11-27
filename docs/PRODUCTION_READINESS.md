@@ -3,9 +3,9 @@
 **Status:** Not approved for real customer or technician data until every release gate below is evidenced.
 
 ## Identity and account access
-- [ ] Configure the existing Firebase Web App for the production Vercel project using the exact values from Firebase Console.
-- [ ] Enable Google as an Authentication provider.
-- [ ] Add the production hostname to Firebase Authentication authorized domains.
+- [x] Configure the existing Firebase Web App for the production Vercel project using the exact values from Firebase Console; the verified Web App values and existing named Firestore database ID are now present in Vercel Production environment variables.
+- [x] Enable Google as an Authentication provider (confirmed in Firebase Console).
+- [x] Add `sunfix-ai.vercel.app` to Firebase Authentication authorized domains (confirmed in Firebase Console).
 - [ ] Verify sign-in, sign-out, token refresh, revoked sessions, unauthorized-domain handling, and two-account isolation from the production hostname.
 - [ ] Confirm cloud data paths require verified identity and never mix anonymous browser data with a signed-in account.
 
@@ -39,6 +39,6 @@
 - [ ] Obtain a qualified solar-domain safety review. AI output must remain advisory and never replace certified electrical procedures or technician judgement.
 
 ## Current blocker
-The production Vercel project currently has no Firebase environment variables. Google sign-in cannot succeed until the real Firebase Web App values are added to the Vercel Production environment and a fresh deployment is built. Firebase Web App config values are browser client configuration; never substitute Firebase Admin credentials or a private key.
+The verified Firebase Web App client configuration and existing named Firestore database ID are now configured in the Vercel Production environment. They take effect only after a fresh Production build. Remaining blockers include production reCAPTCHA Enterprise site key/App Check registration, live Firestore rules comparison, and live sign-in/account-isolation/AI smoke verification. Firebase Web App config values are browser client configuration; never substitute Firebase Admin credentials or a private key.
 
 No paid plan, backup feature, live rules deployment, Storage bucket, or production Firebase resource should be enabled without the owner's explicit plan and cost approval.
