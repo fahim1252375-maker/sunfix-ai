@@ -383,6 +383,17 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [copilotBusy, setCopilotBusy] = useState(false);
   const [copilotStreamingText, setCopilotStreamingText] = useState('');
 
+  // Keep the latest records available to a reconnect restore without making the
+  // restore effect depend on every workspace mutation.
+  const effectiveOnlineRef = useRef(effectiveOnline);
+  effectiveOnlineRef.current = effectiveOnline;
+  const workspaceRef = useRef<CloudWorkspaceRecords & { syncQueue: SyncQueueItem[] }>({
+    assets, cases, workOrders, evidence, reports, knowledgeDocs, copilotThreads, syncQueue,
+  });
+  workspaceRef.current = {
+    assets, cases, workOrders, evidence, reports, knowledgeDocs, copilotThreads, syncQueue,
+  };
+
   const refreshRuntimeCapabilities = useCallback(async () => {
     const caps = await inspectHybridRuntimeCapabilities(effectiveOnline);
     setRuntimeCapabilities(caps);
@@ -465,7 +476,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const [avail, fsStatus, caps] = await Promise.all([
         checkInitialDeviceAvailability(),
         testFirestoreConnection(),
-        inspectHybridRuntimeCapabilities(effectiveOnline),
+        inspectHybridRuntimeCapabilities(effectiveOnlineRef.current),
       ]);
       if (!active) return;
       const localRecords: CloudWorkspaceRecords = saved ? {
@@ -473,46 +484,23 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         evidence: saved.evidence || [], reports: saved.reports || [], knowledgeDocs: saved.knowledgeDocs || [],
         copilotThreads: saved.copilotThreads || [],
       } : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
-      let records = localRecords;
-      let loadedQueue = queue;
-      if (user?.emailVerified && effectiveOnline) {
-        try {
-          const cloud = await fetchUserCloudWorkspace(user.uid);
-          if (!active || auth.currentUser?.uid !== scopeId.slice('user:'.length)) return;
-          const reconciled = reconcileCloudWorkspace(cloud.records, localRecords, queue, cloud.incomplete, user.uid);
-          records = reconciled.records;
-          loadedQueue = reconciled.queue;
-          setCloudCounts(cloud.counts);
-          setCloudHydrationWarning(cloud.incomplete.length
-            ? `${cloud.incomplete.length} legacy or invalid cloud record(s) could not be fully restored. This device's matching local copies were preserved.`
-            : null);
-        } catch (error) {
-          if (!active) return;
-          const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
-            ? error.code.toLowerCase() : '';
-          setCloudHydrationWarning(code.includes('permission')
-            ? 'Cloud restore was denied by Firestore rules. Local data remains available; no cloud records were changed.'
-            : code.includes('resource-exhausted')
-              ? 'Cloud restore paused because the Firebase quota was reached. Local data remains available.'
-              : code.includes('account_changed')
-                ? 'Account changed during cloud restore. The other account’s data was not applied.'
-                : 'Cloud restore is unavailable. The account-scoped local snapshot remains in use.');
-          setCloudCounts(null);
-          records = saved ? localRecords : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
-        }
-      } else if (user) {
-        records = saved ? localRecords : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
-        setCloudCounts(null);
-        setCloudHydrationWarning(user.emailVerified
-          ? 'Offline: showing this account’s local snapshot. Cloud records will refresh after reconnect.'
-          : 'Email verification is required before cloud restore or sync.');
-      } else {
-        setCloudHydrationWarning(null);
-        records = saved ? localRecords : {
+      const records = user
+        ? localRecords
+        : saved ? localRecords : {
           assets: DEMO_ASSETS, cases: DEMO_CASES, workOrders: DEMO_WORK_ORDERS,
           evidence: DEMO_EVIDENCE, reports: DEMO_REPORTS, knowledgeDocs: DEMO_KNOWLEDGE_LIBRARY,
           copilotThreads: [makeInitialCopilotThread()],
         };
+
+      if (user) {
+        setCloudCounts(null);
+        setCloudHydrationWarning(!user.emailVerified
+          ? 'Email verification is required before cloud restore or sync.'
+          : effectiveOnlineRef.current
+            ? 'Cloud restore is loading for this account.'
+            : 'Offline: showing this account’s local snapshot. Cloud records will refresh after reconnect.');
+      } else {
+        setCloudHydrationWarning(null);
       }
       if (records.assets) setAssets(records.assets);
       if (records.cases) setCases(records.cases);
@@ -543,7 +531,75 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       active = false;
     };
-  }, [authReady, storageScopeId, user?.uid, user?.emailVerified, effectiveOnline]);
+  }, [authReady, storageScopeId, user?.uid, user?.emailVerified]);
+
+  // Restore cloud records only after the matching account's local workspace is
+  // ready. Connectivity changes refresh cloud data without rerunning local
+  // hydration or resetting an in-progress diagnostic/repair workflow.
+  useEffect(() => {
+    if (!authReady || hydratedScopeId !== storageScopeId || !user?.emailVerified || !effectiveOnline) {
+      return;
+    }
+
+    let active = true;
+    const scopeId = storageScopeId;
+    const userId = user.uid;
+
+    (async () => {
+      try {
+        const cloud = await fetchUserCloudWorkspace(userId);
+        if (!active || auth.currentUser?.uid !== userId || scopeId !== storageScopeId) return;
+
+        const current = workspaceRef.current;
+        const localRecords: CloudWorkspaceRecords = {
+          assets: current.assets,
+          cases: current.cases,
+          workOrders: current.workOrders,
+          evidence: current.evidence,
+          reports: current.reports,
+          knowledgeDocs: current.knowledgeDocs,
+          copilotThreads: current.copilotThreads,
+        };
+        const reconciled = reconcileCloudWorkspace(
+          cloud.records,
+          localRecords,
+          current.syncQueue,
+          cloud.incomplete,
+          userId,
+        );
+        if (!active || auth.currentUser?.uid !== userId) return;
+
+        setAssets(reconciled.records.assets);
+        setCases(reconciled.records.cases);
+        setWorkOrders(reconciled.records.workOrders);
+        setEvidence(reconciled.records.evidence);
+        setReports(reconciled.records.reports);
+        setKnowledgeDocs(reconciled.records.knowledgeDocs);
+        setCopilotThreads(reconciled.records.copilotThreads);
+        setSyncQueue(reconciled.queue);
+        setCloudCounts(cloud.counts);
+        setCloudHydrationWarning(cloud.incomplete.length
+          ? `${cloud.incomplete.length} legacy or invalid cloud record(s) could not be fully restored. This device's matching local copies were preserved.`
+          : null);
+      } catch (error) {
+        if (!active) return;
+        const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code.toLowerCase() : '';
+        setCloudHydrationWarning(code.includes('permission')
+          ? 'Cloud restore was denied by Firestore rules. Local data remains available; no cloud records were changed.'
+          : code.includes('resource-exhausted')
+            ? 'Cloud restore paused because the Firebase quota was reached. Local data remains available.'
+            : code.includes('account_changed')
+              ? 'Account changed during cloud restore. The other account’s data was not applied.'
+              : 'Cloud restore is unavailable. The account-scoped local snapshot remains in use.');
+        setCloudCounts(null);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [authReady, effectiveOnline, hydratedScopeId, storageScopeId, user?.uid, user?.emailVerified]);
 
   // Persist only after the matching account workspace has finished hydration.
   useEffect(() => {
