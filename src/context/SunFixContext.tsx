@@ -950,7 +950,17 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await signInWithGoogle();
       if (route === 'welcome') setRoute('dashboard');
     } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Google sign-in failed.');
+      const code = err && typeof err === 'object' && 'code' in err && typeof err.code === 'string' ? err.code : '';
+      const friendlyMessage = code === 'auth/unauthorized-domain'
+        ? 'This website is not yet authorised for Google sign-in. Please contact the site administrator.'
+        : code === 'auth/popup-blocked'
+          ? 'Your browser blocked the Google sign-in window. Allow pop-ups for this website and try again.'
+          : code === 'auth/popup-closed-by-user'
+            ? 'The Google sign-in window was closed before authentication finished. You can try again.'
+            : code === 'auth/network-request-failed'
+              ? 'Google sign-in could not reach Firebase. Check your internet connection and try again.'
+              : err instanceof Error ? err.message : 'Google sign-in could not be completed. Please try again or contact support.';
+      setAuthError(friendlyMessage);
     }
   }, [route]);
 
