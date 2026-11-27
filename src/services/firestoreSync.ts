@@ -1,8 +1,8 @@
 import {
   collection,
   doc,
+  getCountFromServer,
   getDoc,
-  getDocs,
   query,
   serverTimestamp,
   setDoc,
@@ -308,17 +308,17 @@ export async function fetchUserCloudRecordCounts(uid: string): Promise<{
   }
 
   try {
-    const [aSnap, cSnap, wSnap, rSnap] = await Promise.all([
-      getDocs(query(collection(db, 'assets'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'diagnosticCases'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'workOrders'), where('ownerId', '==', uid))),
-      getDocs(query(collection(db, 'serviceReports'), where('ownerId', '==', uid))),
+    const [aCount, cCount, wCount, rCount] = await Promise.all([
+      getCountFromServer(query(collection(db, 'assets'), where('ownerId', '==', uid))),
+      getCountFromServer(query(collection(db, 'diagnosticCases'), where('ownerId', '==', uid))),
+      getCountFromServer(query(collection(db, 'workOrders'), where('ownerId', '==', uid))),
+      getCountFromServer(query(collection(db, 'serviceReports'), where('ownerId', '==', uid))),
     ]);
     return {
-      assets: aSnap.size,
-      cases: cSnap.size,
-      workOrders: wSnap.size,
-      reports: rSnap.size,
+      assets: aCount.data().count,
+      cases: cCount.data().count,
+      workOrders: wCount.data().count,
+      reports: rCount.data().count,
     };
   } catch (err) {
     handleFirestoreError(err, OperationType.LIST, 'assets');

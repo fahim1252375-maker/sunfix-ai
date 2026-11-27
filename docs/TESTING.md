@@ -8,6 +8,8 @@
 
 Live Firestore rules deployment targets only the named database configured in `firebase.json`. Emulator tests must use `firebase.emulator.json`, which isolates the default emulator database.
 - Production bundle: `bun run build`
+- Vercel static output configuration: `vercel.json` (build output `dist`; local validation does not deploy).
+- Dependency risk: run `bun audit` and `bun audit --production`; record unresolved advisories and do not force out-of-range overrides.
 
 The browser test suite starts the Vite development server at `127.0.0.1:4173` and uses emulator-only Firebase configuration for the default CI run. No production project credentials are used by the default CI run. The Auth emulator E2E test creates a disposable test user, verifies its email through the Auth Emulator OOB-code flow, and force-refreshes its ID token to obtain the `email_verified` claim. The offline-to-online browser test mounts the real `SunFixProvider`, queues a new asset while the browser is offline, verifies the account-scoped IndexedDB workspace and pending queue, reconnects the browser, waits for the provider's automatic `processSyncQueue` effect, and verifies both the persisted `synced` queue state and the owner-scoped Firestore record count. This exercises the app context and reconnect path rather than directly calling only the lower-level sync service.
 
@@ -62,3 +64,11 @@ The accounts must be distinct and email-verified. The Firebase **Email/Password*
 The emulator suite verifies owner-scoped Firestore rules and an authenticated, email-verified test principal writing through the actual Firebase SDK sync service. It does not replace real Google OAuth, live Firestore verification, or production reCAPTCHA Enterprise attestation.
 
 At the 2026-11-27 handoff check, the live Firestore test was not configured: the four test-account secrets and `SUNFIX_RUN_LIVE_FIRESTORE_TEST` variable were absent. The live App Check/AI test was also not enabled because the App Check debug token/site key and Firebase AI Logic setup were unavailable.
+
+## Current run evidence and known gaps (2026-11-27)
+
+The latest GitHub Actions run at handoff is [run 45878864269](https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/45878864269), passing TypeScript, ESLint, unit/security checks (40 tests), Firestore emulator authorization, authenticated emulator sync, responsive/accessibility browser checks, and production build on commit `73deb94`. The optional live Firestore and Firebase AI Logic checks were skipped because their explicit gates and credentials were not configured. A passing emulator test is not a live project test.
+
+The signed-in app does not yet hydrate entity documents from Firestore. Existing browser tests prove write authorization and queue reconnect behavior, not full second-device restoration. Browser tests must be extended when a complete wire schema/read path is added. Remote file storage and Vercel Functions have no implemented integration tests because those features are not implemented.
+
+For the backend-readiness changes on this branch, local validation on 2026-11-27 reports: frozen Bun install passed; TypeScript passed; ESLint passed; unit suite passed **42/42** after correcting a test assertion; Vite build passed and emitted `dist/index.html`; full and production Bun audits each returned **1 High, 2 Moderate, 1 Low, 0 Critical**. `bun run test:rules` could not start the CLI/emulator (`bunx firebase-tools@15.37.0` returned `EPERM` before test execution). `bun run test:e2e` could not launch Chromium because the host denied Chromium Mach port registration; all 20 browser cases failed at browser startup, before app assertions. Neither local failure is reported as a passing test. The new Firestore aggregate count path therefore has type/build coverage but awaits emulator CI verification.

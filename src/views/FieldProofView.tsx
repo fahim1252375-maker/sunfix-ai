@@ -3,6 +3,7 @@ import { Camera, CheckCircle2, Filter, Plus } from 'lucide-react';
 import { useSunFix } from '../context/SunFixContext';
 import { TOKENS } from '../theme/tokens';
 import type { EvidenceOriginKind, EvidenceType } from '../types/sunfix';
+import { validateEvidenceImage } from '../utils/fileValidation';
 
 const ORIGIN_LABELS: Record<EvidenceOriginKind, { label: string; color: string }> = {
   original_evidence: { label: 'Original Field Evidence', color: TOKENS.mint },
@@ -22,6 +23,7 @@ export const FieldProofView: React.FC = () => {
   const [readingValue, setReadingValue] = useState('');
   const [readingUnit, setReadingUnit] = useState('kW');
   const [imageDataUrl, setImageDataUrl] = useState<string | undefined>(undefined);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [savedBanner, setSavedBanner] = useState(false);
 
   const selectedAsset = assets.find((a) => a.id === assetId) || assets[0];
@@ -33,6 +35,13 @@ export const FieldProofView: React.FC = () => {
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPhotoError(null);
+    const validationError = validateEvidenceImage(file);
+    if (validationError) {
+      setPhotoError(validationError);
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
@@ -40,6 +49,7 @@ export const FieldProofView: React.FC = () => {
         if (!caption) setCaption(file.name);
       }
     };
+    reader.onerror = () => setPhotoError('The photo could not be read. Choose it again.');
     reader.readAsDataURL(file);
   };
 
@@ -199,6 +209,10 @@ export const FieldProofView: React.FC = () => {
               <span>{imageDataUrl ? 'Photo Attached (Click to Replace)' : 'Attach JPEG / PNG Photo'}</span>
               <input type="file" accept="image/png,image/jpeg" onChange={handlePhotoSelect} className="hidden" />
             </label>
+            <p className="text-[11px]" style={{ color: TOKENS.amberWarn }}>
+              Photos are saved in this browser only. Firestore sync stores the evidence metadata, not the image file.
+            </p>
+            {photoError && <p role="alert" className="text-xs" style={{ color: TOKENS.terracotta }}>{photoError}</p>}
 
             {imageDataUrl && (
               <img
@@ -220,7 +234,7 @@ export const FieldProofView: React.FC = () => {
             {savedBanner && (
               <div className="flex items-center gap-2 text-xs" style={{ color: TOKENS.mint }}>
                 <CheckCircle2 className="w-4 h-4" />
-                Saved to FieldProof archive & queued for offline-first sync.
+                Saved in this browser; evidence metadata queued for cloud sync.
               </div>
             )}
           </div>

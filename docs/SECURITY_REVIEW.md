@@ -94,3 +94,16 @@ Using the committed Bun dependency graph (`bun audit --production` and `bun audi
 The Firebase CLI check reports **no authorized accounts** in this local environment. Firebase Console access remains available, but its AI Logic and App Check setup screens require a Project Owner to enable APIs/configure provider keys. See the task handoff report for live integration status.
 
 **Current status:** dependency remediation remains open. The upstream gRPC fix is merged but unpublished; Workbox's `glob` / `minimatch` ranges also exclude fixed packages. Do not force overrides or declare the project security-clean. Recheck published versions and rerun both Bun audits before production readiness is reconsidered.
+
+## Backend, database, and hosting readiness audit (2026-11-27)
+
+- Work was performed on `hackathon/buildhybridai-2026-11-26`, HEAD `73deb94`, without modifying `main`, merging PR #4, deploying, or publishing rules.
+- Repository rules are deny-by-default and validate owner-scoped metadata. The separate live rules inspection found the current live revision lacks the repository's two hazard/Stop-Work safeguards. This mismatch remains a production blocker; no live rule edit was made.
+- Firebase Auth's Google provider is enabled in the inspected project. Client code requires a verified user for Firestore writes. Live Firebase App Check and Firebase AI Logic setup remain unavailable from the current Console role; they are not claimed active.
+- Firestore documents contain only a subset of the in-memory application entities. The app does not read entity documents back into the workspace; only aggregate counts are queried. Do not call the full app cloud-restorable or multi-device ready.
+- FieldProof image data remains in browser IndexedDB. The form now limits JPEG/PNG files to 10 MiB and states that Firestore stores metadata only. Original images, imported PDFs, and generated report PDFs are not remotely persisted.
+- `vercel.json` prepares Vite static output and an SPA fallback. No API server, Admin SDK, private credential, or Vercel deployment exists.
+- No-cost Firebase shared-quota constraints were preserved. Firestore backup is disabled; IndexedDB is not a backup. No paid service or billing was enabled.
+- Full and production dependency audit remain at **1 High, 2 Moderate, 1 Low, 0 Critical** as described above. The high gRPC issue is not cleared.
+
+**Readiness verdict:** partially ready for Vercel static deployment preparation only; not backend/database ready for production. See `ARCHITECTURE.md`, `DATABASE_SCHEMA.md`, `BACKEND_API.md`, `VERCEL_DEPLOYMENT.md`, and `DATA_BACKUP_AND_RECOVERY.md` for the data-flow and limitations.

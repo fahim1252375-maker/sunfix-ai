@@ -36,7 +36,7 @@ Also set:
 
 For the Firebase project `avid-grin-p01dl`, the Firebase Console currently shows the existing Firestore database ID `ai-studio-dcfb1e98-5786-4f95-9e81-c11da4cfcc33`, edition Enterprise, and the **AI shared quota** badge. Use that exact value for live Firebase configuration; do not create a second database. The Console also shows this project on the no-cost AI Studio Starter tier. AI Studio-provisioned Firestore databases in the shared quota group do not require Cloud Billing and share daily quotas; when a shared limit is reached, requests pause until reset. Keep the database in that shared quota group and never choose **Upgrade to pay-as-you-go**. The normal Firebase free quota's “one eligible database per project” rule is separate; use the live Console badge and the [AI Studio shared-quota documentation](https://firebase.google.com/docs/ai-assistance/ai-studio-integration#understand-the-shared-quota) for this database's eligibility. Keep `(default)` for the isolated local emulator unless you have intentionally configured a named emulator database. Create `.env.local` in the repository root on your own machine and fill the values there. Do not commit it. Firebase Web App configuration is client configuration, not an Admin credential; nevertheless, keep local environment files out of Git. Never put a Firebase service-account JSON, Admin SDK private key, or private Gemini API key in the browser app.
 
-`GEMINI_API_KEY` is deliberately blank and unused by the browser app. Never add a Gemini secret to a `VITE_*` variable.
+There is no Gemini API key variable in this application. Firebase AI Logic uses the Firebase Web SDK and project configuration; never add a private key to a `VITE_*` variable.
 
 ## 2. Enable Google Authentication
 
