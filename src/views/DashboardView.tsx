@@ -60,6 +60,23 @@ export const DashboardView: React.FC = () => {
   const pendingRepairs = workOrders.filter((w) => w.status !== 'completed');
   const pendingSyncCount = syncQueue.filter((q) => q.status === 'pending' || q.status === 'failed').length;
 
+  if (!activeAsset) {
+    return (
+      <section className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-start justify-center gap-4 rounded-2xl border p-7"
+        style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}>
+        <span className="font-mono-tech text-xs uppercase tracking-widest" style={{ color: TOKENS.brass }}>Workspace setup</span>
+        <h1 className="font-display text-3xl" style={{ color: TOKENS.bone }}>Add your first solar installation</h1>
+        <p className="text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+          Your workspace is empty. Add a site to start managing its equipment, diagnostics, service work, and reports.
+        </p>
+        <button type="button" onClick={() => navigate('assets')} className="rounded-lg px-4 py-3 text-sm font-semibold"
+          style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>
+          Open site registry
+        </button>
+      </section>
+    );
+  }
+
   const statusDistribution = [
     { name: 'Nominal', count: assets.filter((a) => a.status === 'nominal').length, color: TOKENS.mint },
     { name: 'Warning', count: assets.filter((a) => a.status === 'warning').length, color: TOKENS.amberWarn },
