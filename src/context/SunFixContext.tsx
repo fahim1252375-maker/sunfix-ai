@@ -14,6 +14,7 @@ import { useOnlineStatus } from '../hooks/usePWAInstall';
 import {
   auth,
   getAppCheckStatus,
+  isFirebaseConfigured,
   signInWithGoogle,
   signOutUser,
   testFirestoreConnection,
@@ -673,8 +674,15 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     storageScopeId,
   ]);
 
-  // Auth state listener
+  // Auth state listener. Public demo builds may intentionally omit Firebase
+  // credentials; allow local hydration without starting Firebase Auth.
   useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      setUser(null);
+      setAuthReady(true);
+      return;
+    }
+
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       setAuthReady(true);
