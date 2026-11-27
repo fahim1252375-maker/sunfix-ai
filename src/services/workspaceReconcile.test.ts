@@ -42,6 +42,22 @@ test('pending local mutations win restore and keep their replay queue', () => {
   assert.equal((result.queue[0].payload as Asset).cloudRevision, 1);
 });
 
+test('an in-flight sync remains in-flight during cloud reconciliation', () => {
+  const local = asset('syncing');
+  const queue: SyncQueueItem[] = [{
+    id: 'q-syncing', mutationId: 'm-syncing', baseRevision: 0, entityType: 'asset', entityId: local.id,
+    operation: 'upsert', label: local.name, payload: local, status: 'syncing', attempts: 1,
+    updatedAt: '2026-11-27T00:00:00.000Z',
+  }];
+  const result = reconcileCloudWorkspace(workspace(), workspace([local]), queue, [], uid);
+
+  assert.equal(result.records.assets[0].id, local.id);
+  assert.equal(result.queue.length, 1);
+  assert.equal(result.queue[0].id, 'q-syncing');
+  assert.equal(result.queue[0].status, 'syncing');
+  assert.equal(result.queue[0].mutationId, 'm-syncing');
+});
+
 test('cloud deletion preserves a known cloud revision as a conflict', () => {
   const local = asset('missing', { cloudRevision: 7 });
   const result = reconcileCloudWorkspace(workspace(), workspace([local]), [], [], uid);
