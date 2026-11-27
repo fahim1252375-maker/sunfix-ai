@@ -7,6 +7,7 @@ import React, { Suspense, lazy } from 'react';
 import { AppShell } from './components/AppShell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SunFixProvider, useSunFix } from './context/SunFixContext';
+import { TOKENS } from './theme/tokens';
 
 const AssetsView = lazy(() => import('./views/AssetsView').then((m) => ({ default: m.AssetsView })));
 const CalculatorView = lazy(() => import('./views/CalculatorView').then((m) => ({ default: m.CalculatorView })));
@@ -22,8 +23,50 @@ const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ defa
 const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
 const WelcomeView = lazy(() => import('./views/WelcomeView').then((m) => ({ default: m.WelcomeView })));
 
+const WorkspaceSetupView: React.FC = () => {
+  const { user, navigate } = useSunFix();
+  const firstName = user?.displayName?.trim().split(/\\s+/)[0];
+
+  return (
+    <AppShell>
+      <section
+        className="mx-auto flex min-h-[65vh] w-full max-w-3xl flex-col items-start justify-center gap-5 rounded-2xl border p-7 sm:p-10"
+        style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}
+      >
+        <span className="font-mono-tech text-xs uppercase tracking-[0.18em]" style={{ color: TOKENS.brass }}>
+          Account workspace · Initial setup
+        </span>
+        <h1 className="font-display text-3xl sm:text-4xl font-semibold" style={{ color: TOKENS.bone }}>
+          Welcome{firstName ? `, ${firstName}` : ' to SunFix'}.
+        </h1>
+        <p className="max-w-2xl text-sm sm:text-base leading-relaxed" style={{ color: TOKENS.sage }}>
+          Your account is ready. Add your first solar installation to create a workspace for your own sites,
+          equipment, diagnostics, and service records. No example customer records are copied into your account.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate('assets')}
+          className="min-h-12 rounded-xl px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+          style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
+        >
+          Add your first solar installation
+        </button>
+        <p className="text-xs" style={{ color: TOKENS.sage }}>
+          You can edit site details and equipment after creation. Cloud sync is available only after the account and security checks are complete.
+        </p>
+      </section>
+    </AppShell>
+  );
+};
+
 const SunFixRouter: React.FC = () => {
-  const { route } = useSunFix();
+  const { route, user, assets } = useSunFix();
+
+  // A new authenticated account starts with an empty, owner-scoped workspace.
+  // Do not inject preview data into that account: guide the user through setup.
+  if (user && assets.length === 0 && route !== 'assets' && route !== 'settings' && route !== 'welcome') {
+    return <WorkspaceSetupView />;
+  }
 
   let screen: React.ReactNode = <DashboardView />;
   switch (route) {
