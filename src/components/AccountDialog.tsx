@@ -215,10 +215,13 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
           </label>
 
           {mode !== 'reset' && (
-            <label className="block space-y-1.5">
-              <span className="text-xs font-medium" style={{ color: TOKENS.sage }}>Password</span>
+            <div className="block space-y-1.5">
+              <label htmlFor="sunfix-account-password" className="block text-xs font-medium" style={{ color: TOKENS.sage }}>
+                Password
+              </label>
               <span className="relative block">
                 <input
+                  id="sunfix-account-password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'}
                   required
@@ -239,7 +242,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </span>
-            </label>
+            </div>
           )}
 
           {error && (
