@@ -10,6 +10,11 @@ import {
   connectAuthEmulator,
   signInWithPopup,
   signOut,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  updateProfile,
   type Auth,
   type User,
 } from 'firebase/auth';
@@ -266,4 +271,36 @@ export async function signInWithGoogle(): Promise<User> {
 export async function signOutUser(): Promise<void> {
   if (!firebaseConfigReady) return;
   await signOut(auth);
+}
+
+function assertFirebaseAccountConfiguration(): void {
+  if (!firebaseConfigReady) {
+    throw new Error('Account access is temporarily unavailable. Please contact the site administrator.');
+  }
+}
+
+export async function signInWithEmailAccount(email: string, password: string): Promise<User> {
+  assertFirebaseAccountConfiguration();
+  const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return credential.user;
+}
+
+export async function createEmailAccount(
+  displayName: string,
+  email: string,
+  password: string,
+): Promise<User> {
+  assertFirebaseAccountConfiguration();
+  const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const safeName = displayName.trim().slice(0, 100);
+  if (safeName) {
+    await updateProfile(credential.user, { displayName: safeName });
+  }
+  await sendEmailVerification(credential.user);
+  return credential.user;
+}
+
+export async function sendAccountPasswordReset(email: string): Promise<void> {
+  assertFirebaseAccountConfiguration();
+  await sendPasswordResetEmail(auth, email.trim());
 }

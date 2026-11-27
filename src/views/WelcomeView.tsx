@@ -2,6 +2,7 @@ import React, { Suspense, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { ArrowRight, Box, CheckCircle2, FileText, ShieldAlert, Wrench } from 'lucide-react';
 import { EditorialHeadline } from '../components/EditorialHeadline';
+import { AccountDialog } from '../components/AccountDialog';
 import { HybridAISection } from '../components/HybridAISection';
 import { LifecycleStageVisual } from '../components/LifecycleStageVisuals';
 import { SolarTwinSvg2D } from '../components/SolarTwinSvg2D';
@@ -18,7 +19,6 @@ const SolarDigitalTwin3D = React.lazy(() =>
 export const WelcomeView: React.FC = () => {
   const {
     navigate,
-    signIn,
     user,
     authError,
     assets,
@@ -33,6 +33,12 @@ export const WelcomeView: React.FC = () => {
 
   const reducedMotion = useReducedMotion();
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [accountDialogMode, setAccountDialogMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const openAccountDialog = (mode: 'sign-in' | 'sign-up') => {
+    setAccountDialogMode(mode);
+    setAccountDialogOpen(true);
+  };
 
   const primaryAsset = assets[0];
   const firebaseConfigured = isFirebaseConfigured();
@@ -49,7 +55,7 @@ export const WelcomeView: React.FC = () => {
     {
       index: '02',
       title: 'Screen Safety & Run Hybrid AI',
-      body: 'Every intake passes the deterministic 9-point Safety Hazard Gate first. When Firebase AI Logic and App Check are configured, successful model responses report LOCAL or CLOUD; otherwise the app clearly reports DEMO RULES or UNAVAILABLE.',
+      body: 'Every intake passes the deterministic 9-point Safety Hazard Gate first. When Firebase AI Logic and App Check are configured, successful model responses report LOCAL or CLOUD; otherwise the app clearly reports an offline fallback or an unavailable service.',
       route: 'diagnostics' as const,
       cta: 'Launch Diagnostic Wizard',
     },
@@ -61,6 +67,23 @@ export const WelcomeView: React.FC = () => {
       cta: 'Explore Service Reports',
     },
   ];
+
+  if (!primaryAsset) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: TOKENS.ink, color: TOKENS.bone }}>
+        <section className="w-full max-w-xl space-y-5 rounded-2xl border p-7 sm:p-9" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}>
+          <span className="font-mono-tech text-xs uppercase tracking-[0.18em]" style={{ color: TOKENS.brass }}>Account workspace · Initial setup</span>
+          <h1 className="font-display text-3xl sm:text-4xl">Your workspace starts here.</h1>
+          <p className="text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+            Your account is signed in. Add your first solar installation to set up your own assets, equipment, diagnostics, and service records.
+          </p>
+          <button type="button" onClick={() => navigate('assets')} className="min-h-12 rounded-xl px-5 py-3 text-sm font-semibold" style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>
+            Add your first installation
+          </button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -106,8 +129,8 @@ export const WelcomeView: React.FC = () => {
           <div className="flex items-center gap-2.5 shrink-0">
             <button
               type="button"
-              onClick={user ? () => navigate('dashboard') : signIn}
-              className="hidden sm:inline-flex px-3 py-2 rounded-lg border text-xs font-medium whitespace-nowrap"
+              onClick={() => user ? navigate('dashboard') : openAccountDialog('sign-in')}
+              className="inline-flex px-3 py-2 rounded-lg border text-xs font-medium whitespace-nowrap"
               style={{
                 backgroundColor: TOKENS.moss,
                 borderColor: TOKENS.hairlineStrong,
@@ -117,14 +140,25 @@ export const WelcomeView: React.FC = () => {
               {user ? user.displayName?.split(' ')[0] || 'Account' : 'Sign in'}
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate('dashboard')}
-              className="px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors"
-              style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
-            >
-              Enter Workspace
-            </button>
+            {!user ? (
+              <button
+                type="button"
+                onClick={() => openAccountDialog('sign-up')}
+                className="px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors"
+                style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
+              >
+                Create account
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate('dashboard')}
+                className="px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors"
+                style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
+              >
+                Open Workspace
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -142,9 +176,11 @@ export const WelcomeView: React.FC = () => {
               PLATFORM STATUS
             </span>
             <p className="leading-relaxed" style={{ color: TOKENS.sage }}>
-              Sample rooftop telemetry and preloaded records are illustrative sample content. {!firebaseConfigured
-                ? 'Account sign-in and cloud services are awaiting the site Firebase connection. Your current browser workspace remains local to this device.'
-                : `Firebase client settings are detected. App Check status: ${appCheckStatus.state}. Account and cloud services must still pass live verification.`}
+              {!firebaseConfigured
+                ? 'Account access is being connected. The rooftop model and example records on this page are provided for preview.'
+                : appCheckStatus.state === 'active_enterprise'
+                  ? 'The account provider is configured and app security checks are active. The rooftop model and example records shown here are illustrative.'
+                  : 'Account sign-in is configured. Cloud sync and AI services are awaiting security verification; the rooftop model and example records shown here are illustrative.'}
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
@@ -156,7 +192,7 @@ export const WelcomeView: React.FC = () => {
                 <EditorialHeadline text="Powering smarter *solar* maintenance." />
               </h1>
               <p className="text-base sm:text-lg max-w-2xl leading-relaxed" style={{ color: TOKENS.sage }}>
-                Explore a simulated commercial rooftop in 3D, screen hazards before work begins, and inspect source-aware AI routing. Live Gemini inference and cross-device cloud sync require a configured Firebase project and verified App Check.
+                Explore an interactive commercial rooftop model in 3D, screen hazards before work begins, and inspect source-aware AI routing. Cloud sync and live AI services become available after account and security checks pass.
               </p>
 
               {authError && (
@@ -206,13 +242,13 @@ export const WelcomeView: React.FC = () => {
                 Sample Site Preview
               </div>
               <div className="font-display text-lg" style={{ color: TOKENS.bone }}>
-                {primaryAsset.name}
+                {primaryAsset.name.replace(/\s*\[DEMO\]/i, '')}
               </div>
               <p className="leading-relaxed" style={{ color: TOKENS.sage }}>
-                {activeFaultScenario.description}
+                Example diagnostic scenario: {activeFaultScenario.description}
               </p>
               <div className="font-mono-tech text-[11px]" style={{ color: TOKENS.mint }}>
-                Browser-local workspace · {firebaseConfigured ? `Firebase connected · App Check: ${appCheckStatus.state}` : 'Account services awaiting configuration'}
+                {firebaseConfigured ? 'Google account connection available · Cloud services awaiting security verification' : 'Account connection pending'}
               </div>
             </div>
           </div>
@@ -252,19 +288,19 @@ export const WelcomeView: React.FC = () => {
           </div>
         </section>
 
-        {/* Proof Strip (Explicitly Labelled Demo Metrics — Zero Fake Logos) */}
+        {/* Proof Strip — clearly identified illustrative model specifications */}
         <section className="border-y" style={{ borderColor: TOKENS.hairline, backgroundColor: TOKENS.moss }}>
           <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-8 grid grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               {
                 value: '48 kWp',
-                tag: 'SIMULATED TWIN [DEMO]',
+                tag: 'INTERACTIVE TWIN MODEL',
                 label: '120 instanced PV modules across 6 strings',
               },
               {
                 value: '3 Modes',
                 tag: 'SOURCE-AWARE ROUTING',
-                label: 'On-device and cloud AI when configured; DEMO RULES otherwise',
+                label: 'On-device and cloud AI when available; offline fallback is clearly identified',
               },
               {
                 value: '9 Checks',
@@ -410,7 +446,7 @@ export const WelcomeView: React.FC = () => {
                   desc: 'Inspect Mounting Backplate, Heatsink Fins, Power Core, and reactive fault LCD display.',
                 },
                 {
-                  code: 'STORAGE · 60 kWh [DEMO]',
+                  code: 'STORAGE · 60 kWh · MODEL SPECIFICATION',
                   title: 'LFP Rack & Combiner Raceway',
                   desc: '2 string combiners feeding a rooftop DC trunk alongside VoltVault LFP storage.',
                 },
@@ -513,7 +549,7 @@ export const WelcomeView: React.FC = () => {
                 <EditorialHeadline text="Document every *repair* with explicit provenance." />
               </h2>
               <p className="text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
-                FieldProof tags every photograph and meter log with its true origin (original field capture, simulated demo evidence, or explanatory text) before compiling print-ready Service Reports and transparent energy gap math.
+                FieldProof records the origin of every photograph and meter reading (original field capture, example evidence, or explanatory text) before compiling print-ready Service Reports and transparent energy gap calculations.
               </p>
               <div className="flex flex-wrap gap-3 pt-1">
                 <button
@@ -649,7 +685,7 @@ export const WelcomeView: React.FC = () => {
               SunFix <em className="italic" style={{ color: TOKENS.brass }}>Field</em>
             </div>
             <div>
-              Apache-2.0 Open Source · #BuildHybridAI · Demonstration site data & simulated irradiance values are explicitly labelled [DEMO] / [SIMULATED].
+              Apache-2.0 Open Source · #BuildHybridAI · Example site and irradiance values are illustrative, not live telemetry.
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-4 font-mono-tech">
@@ -665,6 +701,16 @@ export const WelcomeView: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      <AccountDialog
+        open={accountDialogOpen}
+        initialMode={accountDialogMode}
+        onClose={() => setAccountDialogOpen(false)}
+        onAuthenticated={() => {
+          setAccountDialogOpen(false);
+          navigate('dashboard');
+        }}
+      />
     </div>
   );
 };

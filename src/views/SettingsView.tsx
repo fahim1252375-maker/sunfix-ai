@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   CheckCircle2,
   Cpu,
@@ -10,6 +10,7 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { AIRuntimeIndicator, SyncStatusIndicator } from '../components/RuntimeStatusBadge';
+import { AccountDialog } from '../components/AccountDialog';
 import { useSunFix } from '../context/SunFixContext';
 import { getFirebaseProjectInfo } from '../services/firebase';
 import { TOKENS } from '../theme/tokens';
@@ -17,7 +18,6 @@ import { TOKENS } from '../theme/tokens';
 export const SettingsView: React.FC = () => {
   const {
     user,
-    signIn,
     signOut,
     authError,
     appCheckStatus,
@@ -41,6 +41,7 @@ export const SettingsView: React.FC = () => {
     resetDemoWorkspace,
   } = useSunFix();
 
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const projectInfo = getFirebaseProjectInfo();
   const pendingCount = syncQueue.filter((q) => q.status === 'pending' || q.status === 'failed').length;
   const appCheckHealthy =
@@ -158,7 +159,7 @@ export const SettingsView: React.FC = () => {
             ) : (
               <button
                 type="button"
-                onClick={signIn}
+                onClick={() => setAccountDialogOpen(true)}
                 className="min-h-[44px] px-4 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-90"
                 style={{ backgroundColor: TOKENS.brass, color: TOKENS.mossDeep }}
               >
@@ -381,6 +382,15 @@ export const SettingsView: React.FC = () => {
           </div>
         </section>
       </div>
+
+      <AccountDialog
+        open={accountDialogOpen}
+        initialMode="sign-in"
+        onClose={() => setAccountDialogOpen(false)}
+        onAuthenticated={() => {
+          setAccountDialogOpen(false);
+        }}
+      />
     </div>
   );
 };

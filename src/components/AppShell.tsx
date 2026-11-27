@@ -18,6 +18,7 @@ import {
 import { useSunFix } from '../context/SunFixContext';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { TOKENS } from '../theme/tokens';
+import { AccountDialog } from './AccountDialog';
 import type { ScreenRoute } from '../types/sunfix';
 import { AIRuntimeIndicator, SyncStatusIndicator } from './RuntimeStatusBadge';
 
@@ -39,7 +40,6 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
     route,
     navigate,
     user,
-    signIn,
     signOut,
     effectiveOnline,
     toggleSimulatedOffline,
@@ -52,6 +52,8 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showIOSModal, setShowIOSModal] = useState(false);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [accountDialogMode, setAccountDialogMode] = useState<'sign-in' | 'sign-up'>('sign-in');
 
   const pendingCount = syncQueue.filter((q) => q.status === 'pending' || q.status === 'failed').length;
   const activeNav = NAV_ITEMS.find((n) => n.route === route);
@@ -230,7 +232,7 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
             ) : (
               <button
                 type="button"
-                onClick={signIn}
+                onClick={() => { setAccountDialogMode('sign-in'); setAccountDialogOpen(true); }}
                 className="px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0"
                 style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
               >
@@ -303,6 +305,16 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
           {children}
         </main>
       </div>
+
+      <AccountDialog
+        open={accountDialogOpen}
+        initialMode={accountDialogMode}
+        onClose={() => setAccountDialogOpen(false)}
+        onAuthenticated={() => {
+          setAccountDialogOpen(false);
+          navigate('dashboard');
+        }}
+      />
 
       {/* iOS Install Guide Modal */}
       {showIOSModal && (

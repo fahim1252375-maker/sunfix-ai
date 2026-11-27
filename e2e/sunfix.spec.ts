@@ -24,6 +24,8 @@ test('landing page renders at desktop and mobile widths without horizontal overf
   const landingCopy = await page.locator('body').innerText();
   expect(landingCopy).not.toContain('App Check guarded');
   expect(landingCopy).not.toContain('Cloud fallback reachable');
+  expect(landingCopy).not.toContain('DEMO ENVIRONMENT');
+  expect(landingCopy).not.toContain('Firebase is not configured. Copy .env.example');
   expect(landingCopy).toContain('Online (network available)');
 
   const documentMetrics = await page.evaluate(() => ({
@@ -58,6 +60,53 @@ test('landing page renders at desktop and mobile widths without horizontal overf
     seriousViolations,
     seriousViolations.map((violation) => `${violation.id}: ${violation.help}`).join('\n'),
   ).toEqual([]);
+});
+
+test('a fresh verified account with no installations opens first-site setup instead of crashing', async ({ page }) => {
+  await page.goto('/');
+
+  await page.evaluate(async () => {
+    const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
+    const { createVerifiedEmulatorUser } =
+      await import(/* @vite-ignore */ emulatorTestModulePath);
+    await createVerifiedEmulatorUser();
+  });
+
+  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
+
+  // Exercise the same dashboard entry that the account dialog uses after sign-in.
+  await page.goto('/?autostart=1');
+  await expect(page.getByRole('heading', { name: 'Welcome to SunFix.' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: 'Add your first solar installation' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Application Recovery' })).toHaveCount(0);
+});
+
+test('account dialog offers Google, email sign-in, registration and password reset', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Welcome back' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+  await expect(dialog.getByLabel('Email address')).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: 'Password', exact: true })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Create an account' }).click();
+  const signUpDialog = page.getByRole('dialog', { name: 'Create your account' });
+  await expect(signUpDialog).toBeVisible();
+  await expect(signUpDialog.getByLabel('Full name')).toBeVisible();
+  await expect(signUpDialog.getByRole('button', { name: 'Create account', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign in', exact: true }).last().click();
+  await expect(page.getByRole('dialog', { name: 'Welcome back' })).toBeVisible();
+  await page.getByRole('button', { name: 'Forgot password?' }).click();
+  await expect(page.getByRole('dialog', { name: 'Reset your password' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
 });
 
 test('demo workspace navigation and simulated offline mode remain usable', async ({ page }, testInfo) => {
