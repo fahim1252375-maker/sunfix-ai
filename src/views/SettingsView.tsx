@@ -94,7 +94,7 @@ export const SettingsView: React.FC = () => {
             <div className="flex justify-between py-1.5">
               <span style={{ color: TOKENS.sage }}>Authenticated User</span>
               <span className="font-mono-tech" style={{ color: TOKENS.bone }}>
-                {user ? `${user.displayName || user.email}` : 'Demo Mode (Local Only)'}
+                {user ? `${user.displayName || user.email}` : 'Not signed in'}
               </span>
             </div>
           </div>
