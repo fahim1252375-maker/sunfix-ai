@@ -130,7 +130,7 @@ export const WelcomeView: React.FC = () => {
             <button
               type="button"
               onClick={() => user ? navigate('dashboard') : openAccountDialog('sign-in')}
-              className="hidden sm:inline-flex px-3 py-2 rounded-lg border text-xs font-medium whitespace-nowrap"
+              className="inline-flex px-3 py-2 rounded-lg border text-xs font-medium whitespace-nowrap"
               style={{
                 backgroundColor: TOKENS.moss,
                 borderColor: TOKENS.hairlineStrong,
