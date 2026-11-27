@@ -41,6 +41,7 @@ import {
   loadSyncQueueFromIDB,
   loadWorkspaceFromIDB,
   saveSyncQueueItemToIDB,
+  saveSyncQueueItemsToIDB,
   saveWorkspaceToIDB,
   getStorageScopeId,
 } from '../services/offlineStore';
@@ -573,9 +574,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // conflict/local-only states must survive a reload and must not replay
         // an outdated mutation as if it were still pending.
         try {
-          await Promise.all(
-            reconciled.queue.map((item) => saveSyncQueueItemToIDB(item, scopeId)),
-          );
+          await saveSyncQueueItemsToIDB(reconciled.queue, scopeId);
         } catch {
           setLocalStorageError(
             'Cloud reconciliation could not be saved to local storage. Keep this browser open; no reconciled records or queue statuses were applied.',
