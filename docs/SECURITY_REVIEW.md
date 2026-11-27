@@ -111,3 +111,11 @@ The Firebase CLI check reports **no authorized accounts** in this local environm
 ## Phase 2 implementation note (2026-11-27)
 
 The hackathon branch now contains a schema-v2 Firestore full-domain payload codec, paginated owner-filtered hydration, optimistic revision checks, idempotent mutation IDs, and conservative cloud/local reconciliation. Local storage failures are surfaced; local-only FieldProof images and unconfigured object storage remain explicit. The repository rules were extended for v2 but live rules were not deployed, and live reads/writes were not attempted during this implementation. Existing live summary-only v1 records are reported as incomplete and cannot be reconstructed into the full domain model. Local TypeScript, ESLint, unit tests, and production build pass; local emulator startup remains blocked by a Bun/Firebase CLI `EPERM`. CI verification of this Phase 2 commit is pending its push. These changes improve implementation readiness but do not change the production readiness verdict above.
+
+## Post-review demo deployment verification (2026-11-27)
+
+The unconfigured Firebase startup defect was fixed on commit ce8212cc4445377ac4c3218b6c829748d009db56: Firebase SDK initialization uses inert placeholders only when needed to construct the SDK, while the readiness flag still reflects real Web App values; the app skips its Auth state listener until real configuration exists. The placeholders do not enable cloud operations.
+
+The Vercel deployment at https://sunfix-ai.vercel.app/ and Render deployment at https://sunfix-ai-preview.onrender.com/ were browser-verified to render the React application and enter the Demo Workspace without JavaScript page errors. This is a static Demo Mode deployment using simulated data and browser-local persistence. It is not evidence of live Firebase authentication, Firestore persistence, production App Check, or cloud AI inference.
+
+The latest GitHub Actions quality workflow completed successfully on the same commit (run 46025033327: https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/46025033327). Repository PR #4 (https://github.com/fahim1252375-maker/sunfix-ai/pull/4) remains Draft and is not merged into main. The dependency audit findings described above remain unresolved; the deployment does not change the security-readiness verdict.
