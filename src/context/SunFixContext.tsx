@@ -347,6 +347,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [syncQueue, setSyncQueue] = useState<SyncQueueItem[]>([]);
   const inFlightEntityKeysRef = useRef(new Set<string>());
   const acknowledgedRevisionsRef = useRef(new Map<string, number>());
+  // A ref closes the same-tick race where two effects can start the same
+  // Firestore transaction before React commits isSyncingNow=true.
+  const isSyncingRef = useRef(false);
   const [isSyncingNow, setIsSyncingNow] = useState(false);
   const [firestoreStatus, setFirestoreStatus] = useState<{ ok: boolean; detail: string } | null>(
     null,
@@ -722,12 +725,13 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const processSyncQueue = useCallback(async () => {
-    if (!authReady || !effectiveOnline || isSyncingNow) return;
+    if (!authReady || !effectiveOnline || isSyncingRef.current) return;
     const pendingItems = syncQueue.filter((q) => q.status === 'pending'
       || (q.status === 'failed' && q.attempts < MAX_SYNC_ATTEMPTS
         && !q.lastError?.startsWith('Local persistence failed')));
     if (pendingItems.length === 0) return;
 
+    isSyncingRef.current = true;
     setIsSyncingNow(true);
     try {
       for (const item of pendingItems) {
@@ -811,9 +815,10 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     } finally {
       inFlightEntityKeysRef.current.clear();
+      isSyncingRef.current = false;
       setIsSyncingNow(false);
     }
-  }, [authReady, effectiveOnline, isSyncingNow, syncQueue, user, storageScopeId]);
+  }, [authReady, effectiveOnline, syncQueue, user, storageScopeId]);
 
   // Automatic sync when connectivity returns
   useEffect(() => {
