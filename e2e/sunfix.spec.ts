@@ -76,6 +76,13 @@ test('a fresh verified account with no installations opens first-site setup inst
     timeout: 15_000,
   });
   await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
+
+  // Exercise the same dashboard entry that the account dialog uses after sign-in.
+  await page.goto('/?autostart=1');
+  await expect(page.getByRole('heading', { name: 'Welcome to SunFix.' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: 'Add your first solar installation' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Application Recovery' })).toHaveCount(0);
 });
 
