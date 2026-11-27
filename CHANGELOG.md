@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-27 — Demo startup recovery
+
+### Fixed
+- Prevented Firebase Auth initialization from crashing an unconfigured Demo Mode deployment by keeping real Firebase readiness separate from inert SDK initialization placeholders.
+- Skip the Firebase Auth state listener when real Firebase Web App configuration is absent, allowing the local demo workspace to render and hydrate.
+
+### Verified
+- GitHub Actions Quality checks passed on commit ce8212cc4445377ac4c3218b6c829748d009db56 (run 46025033327: https://github.com/fahim1252375-maker/sunfix-ai/actions/runs/46025033327).
+- Vercel and Render demo deployments rendered the workspace and opened the Demo Workspace without browser JavaScript errors.
+
+### Remaining release gates
+- Firebase sign-in, live Firestore persistence, production App Check, and Firebase AI Logic still require the real project configuration and live integration tests.
+- The dependency audit remains open; see docs/SECURITY_REVIEW.md. No out-of-range dependency override was applied.
+
+
 ## V2.0 — Mesa Ridge 48 kWp Digital Twin, Editorial Redesign & Honest Hybrid AI Showcase
 
 ### Added
