@@ -8,6 +8,7 @@ import { SolarTwinSvg2D } from '../components/SolarTwinSvg2D';
 import { useSunFix } from '../context/SunFixContext';
 import { DEMO_FAULT_SCENARIOS, LIFECYCLE_STAGES } from '../data/demoData';
 import { TOKENS } from '../theme/tokens';
+import { getAppCheckStatus, isFirebaseConfigured } from '../services/firebase';
 import { SAFETY_HAZARD_CHECKS } from '../utils/diagnosticsLogic';
 
 const SolarDigitalTwin3D = React.lazy(() =>
@@ -34,6 +35,8 @@ export const WelcomeView: React.FC = () => {
   const [onboardingStep, setOnboardingStep] = useState(0);
 
   const primaryAsset = assets[0];
+  const firebaseConfigured = isFirebaseConfigured();
+  const appCheckStatus = getAppCheckStatus();
 
   const onboardingSteps = [
     {
@@ -46,7 +49,7 @@ export const WelcomeView: React.FC = () => {
     {
       index: '02',
       title: 'Screen Safety & Run Hybrid AI',
-      body: 'Every intake passes a mandatory 9-point Safety Hazard Gate first. Cleared cases run via Firebase AI Logic with honest LOCAL, CLOUD, or DEMO RULES provenance and Zod citation checks.',
+      body: 'Every intake passes the deterministic 9-point Safety Hazard Gate first. When Firebase AI Logic and App Check are configured, successful model responses report LOCAL or CLOUD; otherwise the app clearly reports DEMO RULES or UNAVAILABLE.',
       route: 'diagnostics' as const,
       cta: 'Launch Diagnostic Wizard',
     },
@@ -129,6 +132,21 @@ export const WelcomeView: React.FC = () => {
       <main id="top" className="flex-1">
         {/* Hero Section */}
         <section className="max-w-[1200px] mx-auto px-4 sm:px-8 pt-14 pb-16 sm:pt-20 sm:pb-20 space-y-12">
+          <div
+            role="status"
+            aria-label="Demo environment and service readiness"
+            className="rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-5 text-xs"
+            style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}
+          >
+            <span className="font-mono-tech font-semibold tracking-wider whitespace-nowrap" style={{ color: TOKENS.brass }}>
+              DEMO ENVIRONMENT
+            </span>
+            <p className="leading-relaxed" style={{ color: TOKENS.sage }}>
+              Sample site data and telemetry are simulated. {!firebaseConfigured
+                ? 'This deployment uses browser-local storage and deterministic DEMO RULES; Google sign-in, Firestore cloud sync, App Check, and live Gemini are not configured.'
+                : `Firebase client settings are present. App Check provider state: ${appCheckStatus.state}. Live sign-in, Firestore, and AI behavior still require end-to-end verification.`}
+            </p>
+          </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
             <div className="lg:col-span-8 space-y-6">
               <div className="font-mono-tech text-xs uppercase tracking-widest" style={{ color: TOKENS.brass }}>
@@ -138,7 +156,7 @@ export const WelcomeView: React.FC = () => {
                 <EditorialHeadline text="Powering smarter *solar* maintenance." />
               </h1>
               <p className="text-base sm:text-lg max-w-2xl leading-relaxed" style={{ color: TOKENS.sage }}>
-                Diagnose smarter. Repair safer. Inspect commercial rooftop assets in 3D, screen electrical hazards before work begins, and run truthful on-device or cloud Gemini inference even when rooftop connectivity drops.
+                Explore a simulated commercial rooftop in 3D, screen hazards before work begins, and inspect source-aware AI routing. Live Gemini inference and cross-device cloud sync require a configured Firebase project and verified App Check.
               </p>
 
               {authError && (
@@ -194,7 +212,7 @@ export const WelcomeView: React.FC = () => {
                 {activeFaultScenario.description}
               </p>
               <div className="font-mono-tech text-[11px]" style={{ color: TOKENS.mint }}>
-                Local IndexedDB persistence · App Check guarded
+                Local IndexedDB persistence · {firebaseConfigured ? `Firebase client configured · App Check: ${appCheckStatus.state}` : 'Firebase cloud services not configured'}
               </div>
             </div>
           </div>
@@ -244,9 +262,9 @@ export const WelcomeView: React.FC = () => {
                 label: '120 instanced PV modules across 6 strings',
               },
               {
-                value: '3 Paths',
-                tag: 'VERIFIED PROVENANCE',
-                label: 'On-device Nano, Cloud Gemini, & Offline Rules',
+                value: '3 Modes',
+                tag: 'SOURCE-AWARE ROUTING',
+                label: 'On-device and cloud AI when configured; DEMO RULES otherwise',
               },
               {
                 value: '9 Checks',
@@ -255,8 +273,8 @@ export const WelcomeView: React.FC = () => {
               },
               {
                 value: 'Offline',
-                tag: 'LOCAL-FIRST PWA',
-                label: 'IndexedDB sync queue with Firestore rules',
+                tag: 'BROWSER-LOCAL WORKSPACE',
+                label: 'IndexedDB persistence; Firestore sync when configured',
               },
             ].map((stat) => (
               <div key={stat.tag} className="space-y-1">
