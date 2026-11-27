@@ -24,6 +24,8 @@ test('landing page renders at desktop and mobile widths without horizontal overf
   const landingCopy = await page.locator('body').innerText();
   expect(landingCopy).not.toContain('App Check guarded');
   expect(landingCopy).not.toContain('Cloud fallback reachable');
+  expect(landingCopy).not.toContain('DEMO ENVIRONMENT');
+  expect(landingCopy).not.toContain('Firebase is not configured. Copy .env.example');
   expect(landingCopy).toContain('Online (network available)');
 
   const documentMetrics = await page.evaluate(() => ({
@@ -58,6 +60,28 @@ test('landing page renders at desktop and mobile widths without horizontal overf
     seriousViolations,
     seriousViolations.map((violation) => `${violation.id}: ${violation.help}`).join('\n'),
   ).toEqual([]);
+});
+
+test('account dialog offers Google, email sign-in, registration and password reset', async ({ page }) => {
+  await page.goto('/');
+
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Welcome back' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+  await expect(dialog.getByLabel('Email address')).toBeVisible();
+  await expect(dialog.getByLabel('Password')).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Create an account' }).click();
+  await expect(page.getByRole('dialog', { name: 'Create your account' })).toBeVisible();
+  await expect(page.getByLabel('Full name')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create account', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Already registered? Sign in' }).click();
+  await expect(page.getByRole('dialog', { name: 'Welcome back' })).toBeVisible();
+  await page.getByRole('button', { name: 'Forgot password?' }).click();
+  await expect(page.getByRole('dialog', { name: 'Reset your password' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
 });
 
 test('demo workspace navigation and simulated offline mode remain usable', async ({ page }, testInfo) => {
