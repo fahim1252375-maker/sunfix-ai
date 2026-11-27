@@ -22,27 +22,40 @@ import {
 } from 'firebase/firestore';
 // Vite supplies import.meta.env in the browser; Node-based unit tests do not.
 const runtimeEnv = import.meta.env || {};
-const isNodeTestRuntime = typeof window === 'undefined';
-const firebaseConfig = {
-  // A non-empty inert key lets Node unit tests import pure Firestore codecs
-  // without attempting a Firebase network call. Browser builds still require
-  // the actual configured key.
-  apiKey: (runtimeEnv.VITE_FIREBASE_API_KEY as string | undefined)?.trim() || (isNodeTestRuntime ? 'unit-test-api-key' : ''),
+const configuredFirebaseValues = {
+  apiKey: (runtimeEnv.VITE_FIREBASE_API_KEY as string | undefined)?.trim() || '',
   authDomain: (runtimeEnv.VITE_FIREBASE_AUTH_DOMAIN as string | undefined)?.trim() || '',
   projectId: (runtimeEnv.VITE_FIREBASE_PROJECT_ID as string | undefined)?.trim() || '',
   storageBucket: (runtimeEnv.VITE_FIREBASE_STORAGE_BUCKET as string | undefined)?.trim() || '',
   messagingSenderId: (runtimeEnv.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined)?.trim() || '',
   appId: (runtimeEnv.VITE_FIREBASE_APP_ID as string | undefined)?.trim() || '',
   measurementId: (runtimeEnv.VITE_FIREBASE_MEASUREMENT_ID as string | undefined)?.trim() || '',
-  firestoreDatabaseId: (runtimeEnv.VITE_FIRESTORE_DATABASE_ID as string | undefined)?.trim() || '(default)',
 };
 
 const firebaseConfigReady = Boolean(
-  firebaseConfig.apiKey &&
-    firebaseConfig.authDomain &&
-    firebaseConfig.projectId &&
-    firebaseConfig.appId,
+  configuredFirebaseValues.apiKey &&
+    configuredFirebaseValues.authDomain &&
+    configuredFirebaseValues.projectId &&
+    configuredFirebaseValues.appId,
 );
+
+// Firebase Auth validates apiKey during getAuth() creation. In Demo Mode,
+// provide inert SDK-only placeholders while keeping every cloud operation
+// disabled unless the real required VITE_FIREBASE_* values are configured.
+const firebaseConfig = {
+  ...configuredFirebaseValues,
+  apiKey: configuredFirebaseValues.apiKey || 'sunfix-demo-disabled-api-key',
+  authDomain: configuredFirebaseValues.authDomain || 'sunfix-demo-disabled.invalid',
+  projectId: configuredFirebaseValues.projectId || 'sunfix-demo-disabled',
+  storageBucket: configuredFirebaseValues.storageBucket || 'sunfix-demo-disabled.invalid',
+  messagingSenderId: configuredFirebaseValues.messagingSenderId || '000000000000',
+  appId: configuredFirebaseValues.appId || '1:000000000000:web:0000000000000000000000',
+  firestoreDatabaseId: (runtimeEnv.VITE_FIRESTORE_DATABASE_ID as string | undefined)?.trim() || '(default)',
+};
+
+export function isFirebaseConfigured(): boolean {
+  return firebaseConfigReady;
+}
 import type { AppCheckState } from '../types/sunfix';
 
 export enum OperationType {
@@ -251,5 +264,6 @@ export async function signInWithGoogle(): Promise<User> {
 }
 
 export async function signOutUser(): Promise<void> {
+  if (!firebaseConfigReady) return;
   await signOut(auth);
 }
