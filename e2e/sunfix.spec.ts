@@ -62,6 +62,23 @@ test('landing page renders at desktop and mobile widths without horizontal overf
   ).toEqual([]);
 });
 
+test('a fresh verified account with no installations opens first-site setup instead of crashing', async ({ page }) => {
+  await page.goto('/');
+
+  await page.evaluate(async () => {
+    const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
+    const { createVerifiedEmulatorUser } =
+      await import(/* @vite-ignore */ emulatorTestModulePath);
+    await createVerifiedEmulatorUser();
+  });
+
+  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Application Recovery' })).toHaveCount(0);
+});
+
 test('account dialog offers Google, email sign-in, registration and password reset', async ({ page }) => {
   await page.goto('/');
 
