@@ -134,17 +134,17 @@ export const WelcomeView: React.FC = () => {
         <section className="max-w-[1200px] mx-auto px-4 sm:px-8 pt-14 pb-16 sm:pt-20 sm:pb-20 space-y-12">
           <div
             role="status"
-            aria-label="Demo environment and service readiness"
+            aria-label="Platform services and account readiness"
             className="rounded-xl border px-4 py-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-5 text-xs"
             style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}
           >
             <span className="font-mono-tech font-semibold tracking-wider whitespace-nowrap" style={{ color: TOKENS.brass }}>
-              DEMO ENVIRONMENT
+              PLATFORM STATUS
             </span>
             <p className="leading-relaxed" style={{ color: TOKENS.sage }}>
-              Sample site data and telemetry are simulated. {!firebaseConfigured
-                ? 'This deployment uses browser-local storage and deterministic DEMO RULES; Google sign-in, Firestore cloud sync, App Check, and live Gemini are not configured.'
-                : `Firebase client settings are present. App Check provider state: ${appCheckStatus.state}. Live sign-in, Firestore, and AI behavior still require end-to-end verification.`}
+              Sample rooftop telemetry and preloaded records are illustrative sample content. {!firebaseConfigured
+                ? 'Account sign-in and cloud services are awaiting the site Firebase connection. Your current browser workspace remains local to this device.'
+                : `Firebase client settings are detected. App Check status: ${appCheckStatus.state}. Account and cloud services must still pass live verification.`}
             </p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
@@ -179,7 +179,7 @@ export const WelcomeView: React.FC = () => {
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap"
                   style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
                 >
-                  Enter Demo Workspace
+                  Explore Workspace
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
@@ -203,7 +203,7 @@ export const WelcomeView: React.FC = () => {
               style={{ borderColor: TOKENS.hairlineStrong }}
             >
               <div className="font-mono-tech uppercase" style={{ color: TOKENS.brass }}>
-                Simulated Site Active [DEMO]
+                Sample Site Preview
               </div>
               <div className="font-display text-lg" style={{ color: TOKENS.bone }}>
                 {primaryAsset.name}
@@ -212,7 +212,7 @@ export const WelcomeView: React.FC = () => {
                 {activeFaultScenario.description}
               </p>
               <div className="font-mono-tech text-[11px]" style={{ color: TOKENS.mint }}>
-                Local IndexedDB persistence · {firebaseConfigured ? `Firebase client configured · App Check: ${appCheckStatus.state}` : 'Firebase cloud services not configured'}
+                Browser-local workspace · {firebaseConfigured ? `Firebase connected · App Check: ${appCheckStatus.state}` : 'Account services awaiting configuration'}
               </div>
             </div>
           </div>

@@ -2,7 +2,7 @@
 
 **Offline-ready solar diagnostics and field-service workspace**
 
-SunFix Field is a React + TypeScript progressive web app prototype for solar asset operations. Cloud identity and data persistence are provided by Firebase; the repository does not contain a separate Express/API server. It combines an evidence-first diagnostic workflow, repair and service-report flows, an interactive 3D solar digital twin with a 2D fallback, a hybrid AI interface with deterministic demo fallbacks, and local offline persistence.
+SunFix Field is a React + TypeScript progressive web application for solar asset operations. The platform code includes account, cloud-sync, diagnostics, and field-service workflows; live service availability depends on the deployment's Firebase configuration. Cloud identity and data persistence are provided by Firebase; the repository does not contain a separate Express/API server. It combines an evidence-first diagnostic workflow, repair and service-report flows, an interactive 3D solar digital twin with a 2D fallback, a hybrid AI interface with deterministic demo fallbacks, and local offline persistence.
 
 > **Important:** Demo assets, telemetry, fault scenarios, AI explanations, and generated evidence are simulated unless explicitly connected to verified live systems. Do not use demo output as electrical safety advice or as a substitute for a qualified technician's inspection.
 
@@ -11,7 +11,7 @@ SunFix Field is a React + TypeScript progressive web app prototype for solar ass
 - **Vercel:** https://sunfix-ai.vercel.app/
 - **Render:** https://sunfix-ai-preview.onrender.com/
 
-Open either deployment and select **Enter Demo Workspace**. These links currently run in Demo Mode with simulated sample data and browser-local persistence. Real Google sign-in, cross-device Firestore sync, Firebase AI Logic cloud inference, and production App Check are not enabled until the intended Firebase project is configured and verified. Treat all demo diagnostics as illustrative only, never as electrical safety advice.
+Open either deployment to explore the workspace. The current deployment still needs its Firebase Web App configuration before Google sign-in, cross-device Firestore sync, Firebase AI Logic cloud inference, and production App Check can become available. Preloaded site records and telemetry are sample content; do not treat sample diagnostics as electrical safety advice.
 
 ## Features
 
