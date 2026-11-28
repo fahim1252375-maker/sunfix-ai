@@ -317,9 +317,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [evidence, setEvidence] = useState<EvidenceRecord[]>(DEMO_EVIDENCE);
   const [reports, setReports] = useState<ServiceReport[]>(DEMO_REPORTS);
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeSource[]>(DEMO_KNOWLEDGE_LIBRARY);
-  const [inferenceHistory, setInferenceHistory] = useState<AIInferenceRecord[]>([
-    DEMO_CASES[0].inferenceRecord,
-  ]);
+  const [inferenceHistory, setInferenceHistory] = useState<AIInferenceRecord[]>([]);
   const [comparisons, setComparisons] = useState<HybridComparisonEntry[]>([]);
   const [hydratedScopeId, setHydratedScopeId] = useState<string | null>(null);
 
@@ -358,9 +356,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [deviceStatusDetail, setDeviceStatusDetail] = useState(
     'Click Prepare On-device AI to check and initialize local model support.',
   );
-  const [lastInferenceRecord, setLastInferenceRecord] = useState<AIInferenceRecord | null>(
-    DEMO_CASES[0].inferenceRecord,
-  );
+  const [lastInferenceRecord, setLastInferenceRecord] = useState<AIInferenceRecord | null>(null);
   const [lastAiWarning, setLastAiWarning] = useState<string | null>(null);
 
   const [syncQueue, setSyncQueue] = useState<SyncQueueItem[]>([]);
@@ -461,7 +457,8 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setEvidence(DEMO_EVIDENCE);
     setReports(DEMO_REPORTS);
     setKnowledgeDocs(DEMO_KNOWLEDGE_LIBRARY);
-    setInferenceHistory([DEMO_CASES[0].inferenceRecord]);
+    setInferenceHistory([]);
+    setLastInferenceRecord(null);
     setComparisons([]);
     setSyncQueue([]);
     setCopilotThreads([makeInitialCopilotThread()]);
@@ -621,8 +618,13 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setReports(validReports);
         setKnowledgeDocs(validKnowledgeDocs);
 
+        const restoredInferenceHistory = Array.isArray(saved?.inferenceHistory)
+          ? saved.inferenceHistory
+          : user ? [] : [DEMO_CASES[0].inferenceRecord];
+        setInferenceHistory(restoredInferenceHistory);
+        setLastInferenceRecord(restoredInferenceHistory[0] || null);
+
         if (saved) {
-          if (Array.isArray(saved.inferenceHistory)) setInferenceHistory(saved.inferenceHistory);
           if (Array.isArray(saved.comparisons)) setComparisons(saved.comparisons);
           if (saved.language) setLanguage(saved.language);
           if (saved.qualityTier) setQualityTier(saved.qualityTier);
@@ -2138,6 +2140,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setReports(DEMO_REPORTS);
     setKnowledgeDocs(DEMO_KNOWLEDGE_LIBRARY);
     setInferenceHistory([DEMO_CASES[0].inferenceRecord]);
+    setLastInferenceRecord(DEMO_CASES[0].inferenceRecord);
     setComparisons([]);
     setSyncQueue([]);
     setSelectedAssetId(DEMO_ASSETS[0].id);
