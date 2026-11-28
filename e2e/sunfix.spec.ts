@@ -62,6 +62,27 @@ test('landing page renders at desktop and mobile widths without horizontal overf
   ).toEqual([]);
 });
 
+test('homepage still opens when browser IndexedDB is unavailable', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'indexedDB', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Powering smarter', {
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('heading', { name: 'Application Recovery' })).toHaveCount(0);
+  await expect(page.getByText(/Loading your private workspace/)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Explore Workspace' }).click();
+  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
 test('a fresh verified account with no installations opens first-site setup instead of crashing', async ({ page }) => {
   await page.goto('/');
 
