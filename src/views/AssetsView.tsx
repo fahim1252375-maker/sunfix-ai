@@ -23,24 +23,24 @@ export const AssetsView: React.FC = () => {
   const [formName, setFormName] = useState('');
   const [formSiteType, setFormSiteType] = useState<Asset['siteType']>('commercial');
   const [formLocation, setFormLocation] = useState('');
-  const [formCapacity, setFormCapacity] = useState('25');
+  const [formCapacity, setFormCapacity] = useState('');
   const [formInverterModel, setFormInverterModel] = useState('');
   const [formInverterSerial, setFormInverterSerial] = useState('');
   const [formBatteryModel, setFormBatteryModel] = useState('');
-  const [formBatteryKwh, setFormBatteryKwh] = useState('30');
-  const [formPanelCount, setFormPanelCount] = useState('60');
+  const [formBatteryKwh, setFormBatteryKwh] = useState('0');
+  const [formPanelCount, setFormPanelCount] = useState('');
 
   const openAddModal = () => {
     setEditingAsset(null);
     setFormName('');
     setFormSiteType('commercial');
     setFormLocation('');
-    setFormCapacity('25');
-    setFormInverterModel('HelioCore X25-PRO');
-    setFormInverterSerial('HC-2026-1001');
-    setFormBatteryModel('VoltVault LFP-30');
-    setFormBatteryKwh('30');
-    setFormPanelCount('60');
+    setFormCapacity('');
+    setFormInverterModel('');
+    setFormInverterSerial('');
+    setFormBatteryModel('');
+    setFormBatteryKwh('0');
+    setFormPanelCount('');
     setShowModal(true);
   };
 
@@ -62,9 +62,10 @@ export const AssetsView: React.FC = () => {
     e.preventDefault();
     if (!formName.trim() || !formLocation.trim() || !formInverterModel.trim()) return;
 
-    const capacityKw = Math.max(0.5, Number.parseFloat(formCapacity) || 10);
-    const panelCount = Math.max(1, Number.parseInt(formPanelCount, 10) || 24);
+    const capacityKw = Number.parseFloat(formCapacity);
+    const panelCount = Number.parseInt(formPanelCount, 10);
     const batteryCapacityKwh = Math.max(0, Number.parseFloat(formBatteryKwh) || 0);
+    if (!Number.isFinite(capacityKw) || capacityKw <= 0 || !Number.isInteger(panelCount) || panelCount < 1) return;
     const now = new Date().toISOString();
 
     const baseComponents = editingAsset?.components || [
@@ -74,8 +75,8 @@ export const AssetsView: React.FC = () => {
         twinId: 'solar_panel' as const,
         type: 'solar_panel' as const,
         name: `PV Array (${panelCount} modules)`,
-        modelIdentifier: `${Math.round((capacityKw * 1000) / panelCount)}W Module Array`,
-        serialNumber: `PV-${Date.now().toString().slice(-5)}`,
+        modelIdentifier: `Calculated average ${Math.round((capacityKw * 1000) / panelCount)} W/module (estimate)`,
+        serialNumber: 'NOT-RECORDED',
         status: 'nominal' as const,
         lastInspectionAt: now,
         notes: 'Registered in SunFix Field.',
@@ -87,31 +88,33 @@ export const AssetsView: React.FC = () => {
         type: 'inverter' as const,
         name: formInverterModel,
         modelIdentifier: formInverterModel,
-        serialNumber: formInverterSerial || 'INV-001',
+        serialNumber: formInverterSerial.trim() || 'NOT-RECORDED',
         status: 'nominal' as const,
         lastInspectionAt: now,
         notes: 'Primary grid-tie inverter.',
       },
-      {
-        id: `comp-bat-${Date.now()}`,
-        assetId: editingAsset?.id || 'pending',
-        twinId: 'battery' as const,
-        type: 'battery' as const,
-        name: formBatteryModel || 'ESS Battery Bank',
-        modelIdentifier: formBatteryModel || 'LFP Storage',
-        serialNumber: `BAT-${Date.now().toString().slice(-5)}`,
-        status: 'nominal' as const,
-        lastInspectionAt: now,
-        notes: `${batteryCapacityKwh} kWh storage unit.`,
-      },
+      ...(formBatteryModel.trim() || batteryCapacityKwh > 0
+        ? [{
+            id: `comp-bat-${Date.now()}`,
+            assetId: editingAsset?.id || 'pending',
+            twinId: 'battery' as const,
+            type: 'battery' as const,
+            name: formBatteryModel.trim() || 'Battery Storage',
+            modelIdentifier: formBatteryModel.trim() || 'Model not recorded',
+            serialNumber: 'NOT-RECORDED',
+            status: 'nominal' as const,
+            lastInspectionAt: now,
+            notes: batteryCapacityKwh > 0 ? `${batteryCapacityKwh} kWh registered capacity.` : 'Battery capacity not recorded.',
+          }]
+        : []),
       {
         id: `comp-grid-${Date.now()}`,
         assetId: editingAsset?.id || 'pending',
         twinId: 'grid_meter' as const,
         type: 'grid_meter' as const,
         name: 'AC Disconnect & Grid Meter',
-        modelIdentifier: 'GridGuard 200A',
-        serialNumber: `GG-${Date.now().toString().slice(-5)}`,
+        modelIdentifier: 'Model not recorded',
+        serialNumber: 'NOT-RECORDED',
         status: 'nominal' as const,
         lastInspectionAt: now,
         notes: 'PCC utility interconnect.',
@@ -126,7 +129,7 @@ export const AssetsView: React.FC = () => {
       capacityKw,
       status: editingAsset?.status || 'nominal',
       inverterModel: formInverterModel.trim(),
-      inverterSerial: formInverterSerial.trim() || 'SN-PENDING',
+      inverterSerial: formInverterSerial.trim() || 'NOT-RECORDED',
       batteryModel: formBatteryModel.trim() || undefined,
       batteryCapacityKwh,
       panelCount,
@@ -612,6 +615,8 @@ export const AssetsView: React.FC = () => {
                 <label className="block mb-1" style={{ color: TOKENS.sage }}>PV Panel Count</label>
                 <input
                   type="number"
+                  min="1"
+                  required
                   value={formPanelCount}
                   onChange={(e) => setFormPanelCount(e.target.value)}
                   className="w-full border rounded-lg px-3 py-2 text-sm"

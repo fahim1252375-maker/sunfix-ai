@@ -317,9 +317,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [evidence, setEvidence] = useState<EvidenceRecord[]>(DEMO_EVIDENCE);
   const [reports, setReports] = useState<ServiceReport[]>(DEMO_REPORTS);
   const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeSource[]>(DEMO_KNOWLEDGE_LIBRARY);
-  const [inferenceHistory, setInferenceHistory] = useState<AIInferenceRecord[]>([
-    DEMO_CASES[0].inferenceRecord,
-  ]);
+  const [inferenceHistory, setInferenceHistory] = useState<AIInferenceRecord[]>([]);
   const [comparisons, setComparisons] = useState<HybridComparisonEntry[]>([]);
   const [hydratedScopeId, setHydratedScopeId] = useState<string | null>(null);
 
@@ -358,9 +356,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [deviceStatusDetail, setDeviceStatusDetail] = useState(
     'Click Prepare On-device AI to check and initialize local model support.',
   );
-  const [lastInferenceRecord, setLastInferenceRecord] = useState<AIInferenceRecord | null>(
-    DEMO_CASES[0].inferenceRecord,
-  );
+  const [lastInferenceRecord, setLastInferenceRecord] = useState<AIInferenceRecord | null>(null);
   const [lastAiWarning, setLastAiWarning] = useState<string | null>(null);
 
   const [syncQueue, setSyncQueue] = useState<SyncQueueItem[]>([]);
@@ -461,7 +457,8 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setEvidence(DEMO_EVIDENCE);
     setReports(DEMO_REPORTS);
     setKnowledgeDocs(DEMO_KNOWLEDGE_LIBRARY);
-    setInferenceHistory([DEMO_CASES[0].inferenceRecord]);
+    setInferenceHistory([]);
+    setLastInferenceRecord(null);
     setComparisons([]);
     setSyncQueue([]);
     setCopilotThreads([makeInitialCopilotThread()]);
@@ -621,8 +618,13 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setReports(validReports);
         setKnowledgeDocs(validKnowledgeDocs);
 
+        const restoredInferenceHistory = Array.isArray(saved?.inferenceHistory)
+          ? saved.inferenceHistory
+          : user ? [] : [DEMO_CASES[0].inferenceRecord];
+        setInferenceHistory(restoredInferenceHistory);
+        setLastInferenceRecord(restoredInferenceHistory[0] || null);
+
         if (saved) {
-          if (Array.isArray(saved.inferenceHistory)) setInferenceHistory(saved.inferenceHistory);
           if (Array.isArray(saved.comparisons)) setComparisons(saved.comparisons);
           if (saved.language) setLanguage(saved.language);
           if (saved.qualityTier) setQualityTier(saved.qualityTier);
@@ -1184,8 +1186,10 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const startDiagnosisForComponent = useCallback(
     (assetId: string, twinId: DigitalTwinComponentId) => {
       const targetAsset = assets.find((a) => a.id === assetId) || assets[0];
+      if (!targetAsset) return;
       const targetComp =
         targetAsset.components.find((c) => c.twinId === twinId) || targetAsset.components[0];
+      const isDemoAsset = targetAsset.isDemo;
       setSelectedAssetId(targetAsset.id);
       setSelectedTwinComponentId(twinId);
       setWizardDraft({
@@ -1194,19 +1198,24 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         twinComponentId: twinId,
         componentType: targetComp?.type || 'inverter',
         componentName: targetComp?.name || twinId,
-        symptoms:
-          twinId === 'inverter'
+        // Real customer installations must start with blank observations. Only
+        // explicitly marked demo assets may receive the illustrative fault preset.
+        symptoms: isDemoAsset
+          ? twinId === 'inverter'
             ? ['No power production', 'Inverter fault warning']
             : twinId === 'battery'
               ? ['Battery not charging']
-              : ['Reduced output'],
-        symptomNotes: targetComp?.notes || '',
-        faultCode:
-          twinId === 'inverter' ? 'G04-UV' : twinId === 'battery' ? 'BMS-12' : '',
-        readings:
-          activeFaultScenario.componentId === twinId && activeFaultScenario.sampleReadings.length
+              : ['Reduced output']
+          : [],
+        symptomNotes: isDemoAsset ? targetComp?.notes || '' : '',
+        faultCode: isDemoAsset
+          ? twinId === 'inverter' ? 'G04-UV' : twinId === 'battery' ? 'BMS-12' : ''
+          : '',
+        readings: isDemoAsset
+          ? activeFaultScenario.componentId === twinId && activeFaultScenario.sampleReadings.length
             ? activeFaultScenario.sampleReadings
-            : [{ label: 'Observed Output', value: '0.0', unit: 'kW' }],
+            : [{ label: 'Observed Output', value: '0.0', unit: 'kW' }]
+          : [],
         safetyFlags: [],
       });
       setRoute('diagnostics');
@@ -1495,6 +1504,25 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatedAt: now,
       };
       setAssets((prev) => (existing ? prev.map((a) => (a.id === id ? saved : a)) : [saved, ...prev]));
+      if (!existing && assets.length === 0) {
+        const firstComponent = saved.components.find((component) => component.twinId === 'inverter')
+          || saved.components[0];
+        setSelectedAssetId(saved.id);
+        setSelectedTwinComponentId(firstComponent?.twinId || 'inverter');
+        setWizardDraft({
+          assetId: saved.id,
+          componentId: firstComponent?.id || 'comp-inverter',
+          twinComponentId: firstComponent?.twinId || 'inverter',
+          componentType: firstComponent?.type || 'inverter',
+          componentName: firstComponent?.name || 'Primary Component',
+          symptoms: [],
+          symptomNotes: '',
+          faultCode: '',
+          readings: [],
+          safetyFlags: [],
+        });
+        setActiveFaultScenario(DEMO_FAULT_SCENARIOS[0]);
+      }
       enqueueSyncItem('asset', saved.id, saved.name, saved);
       return saved;
     },
@@ -2104,6 +2132,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const resetDemoWorkspace = useCallback(async () => {
+    // Demo reset is only for the anonymous preview workspace. Never replace an
+    // authenticated customer's site and service records with sample data.
+    if (user) return;
     await clearAllIDB(storageScopeId);
     setAssets(DEMO_ASSETS);
     setCases(DEMO_CASES);
@@ -2112,6 +2143,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setReports(DEMO_REPORTS);
     setKnowledgeDocs(DEMO_KNOWLEDGE_LIBRARY);
     setInferenceHistory([DEMO_CASES[0].inferenceRecord]);
+    setLastInferenceRecord(DEMO_CASES[0].inferenceRecord);
     setComparisons([]);
     setSyncQueue([]);
     setSelectedAssetId(DEMO_ASSETS[0].id);
@@ -2138,7 +2170,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       },
     ]);
     setActiveCopilotThreadId('thread-demo-mesa');
-  }, [storageScopeId]);
+  }, [storageScopeId, user]);
 
   const value: SunFixContextValue = {
     route,

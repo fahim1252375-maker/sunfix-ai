@@ -196,10 +196,13 @@ export const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="hidden md:flex items-center gap-2">
-              <AIRuntimeIndicator
-                source={lastInferenceRecord?.inferenceSource || 'demo_rules'}
-                compact
-              />
+              {lastInferenceRecord ? (
+                <AIRuntimeIndicator source={lastInferenceRecord.inferenceSource} compact />
+              ) : (
+                <span className="rounded-md border px-2.5 py-1 text-xs font-mono-tech" style={{ color: TOKENS.sage, borderColor: TOKENS.hairline }}>
+                  AI NOT RUN
+                </span>
+              )}
             </div>
 
             <button

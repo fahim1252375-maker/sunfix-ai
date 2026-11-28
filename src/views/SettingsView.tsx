@@ -312,19 +312,21 @@ export const SettingsView: React.FC = () => {
               <RefreshCw className="w-3.5 h-3.5" />
               Sync Now ({pendingCount})
             </button>
-            <button
-              type="button"
-              onClick={resetDemoWorkspace}
-              className="min-h-[42px] inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border text-xs font-medium"
-              style={{
-                backgroundColor: TOKENS.mossDeep,
-                borderColor: TOKENS.terracotta,
-                color: TOKENS.terracotta,
-              }}
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset Demo Scenario
-            </button>
+            {!user && (
+              <button
+                type="button"
+                onClick={resetDemoWorkspace}
+                className="min-h-[42px] inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border text-xs font-medium"
+                style={{
+                  backgroundColor: TOKENS.mossDeep,
+                  borderColor: TOKENS.terracotta,
+                  color: TOKENS.terracotta,
+                }}
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Demo Scenario
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 max-h-52 overflow-y-auto">
