@@ -419,3 +419,44 @@ test('live Firebase AI Logic returns a validated cloud result when explicitly en
   expect(result.inferenceRecord.inferenceSource).toBe('in_cloud');
   expect(result.inferenceRecord.validationPassed).toBe(true);
 });
+
+
+test('a new account can register a real site and enter its first operational workflows', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
+    const { createVerifiedEmulatorUser } =
+      await import(/* @vite-ignore */ emulatorTestModulePath);
+    await createVerifiedEmulatorUser();
+  });
+
+  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.getByRole('button', { name: 'Add your first solar installation' }).click();
+  await expect(page.getByRole('heading', { name: 'Solar installation assets' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Add your first installation' }).click();
+  await expect(page.getByRole('heading', { name: 'Add Solar Installation' })).toBeVisible();
+  await page.getByLabel('Installation Name').fill('First User Site');
+  await page.getByLabel('Site Location Label').fill('Sylhet, Bangladesh');
+  await page.getByLabel('Inverter Model').fill('User Registered Inverter');
+  await page.getByRole('button', { name: 'Save Asset' }).click();
+
+  await expect(page.getByRole('heading', { name: 'First User Site' })).toBeVisible();
+  const commandCenter = page.getByRole('button', { name: 'Command Center', exact: true });
+  if (!(await commandCenter.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+  }
+  await commandCenter.click();
+  await page.getByRole('button', { name: 'New AI Diagnosis' }).click();
+  await expect(page.getByText('First User Site').first()).toBeVisible();
+
+  const reportsLink = page.getByRole('button', { name: 'Reports', exact: true });
+  if (!(await reportsLink.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+  }
+  await reportsLink.click();
+  await expect(page.getByRole('heading', { name: 'Create your first diagnostic record first' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Generate FieldProof Report' })).toBeDisabled();
+});
