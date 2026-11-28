@@ -7,7 +7,7 @@ import { HybridAISection } from '../components/HybridAISection';
 import { LifecycleStageVisual } from '../components/LifecycleStageVisuals';
 import { SolarTwinSvg2D } from '../components/SolarTwinSvg2D';
 import { useSunFix } from '../context/SunFixContext';
-import { DEMO_FAULT_SCENARIOS, LIFECYCLE_STAGES } from '../data/demoData';
+import { DEMO_ASSETS, DEMO_FAULT_SCENARIOS, LIFECYCLE_STAGES } from '../data/demoData';
 import { TOKENS } from '../theme/tokens';
 import { getAppCheckStatus, isFirebaseConfigured } from '../services/firebase';
 import { SAFETY_HAZARD_CHECKS } from '../utils/diagnosticsLogic';
@@ -40,7 +40,8 @@ export const WelcomeView: React.FC = () => {
     setAccountDialogOpen(true);
   };
 
-  const primaryAsset = assets[0];
+  // Keep the public preview functional without showing an account-setup interstitial.
+  const primaryAsset = assets[0] || DEMO_ASSETS[0];
   const firebaseConfigured = isFirebaseConfigured();
   const appCheckStatus = getAppCheckStatus();
 
@@ -67,23 +68,6 @@ export const WelcomeView: React.FC = () => {
       cta: 'Explore Service Reports',
     },
   ];
-
-  if (!primaryAsset) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4 py-12" style={{ backgroundColor: TOKENS.ink, color: TOKENS.bone }}>
-        <section className="w-full max-w-xl space-y-5 rounded-2xl border p-7 sm:p-9" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}>
-          <span className="font-mono-tech text-xs uppercase tracking-[0.18em]" style={{ color: TOKENS.brass }}>Account workspace · Initial setup</span>
-          <h1 className="font-display text-3xl sm:text-4xl">Your workspace starts here.</h1>
-          <p className="text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
-            Your account is signed in. Add your first solar installation to set up your own assets, equipment, diagnostics, and service records.
-          </p>
-          <button type="button" onClick={() => navigate('assets')} className="min-h-12 rounded-xl px-5 py-3 text-sm font-semibold" style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>
-            Add your first installation
-          </button>
-        </section>
-      </div>
-    );
-  }
 
   return (
     <div

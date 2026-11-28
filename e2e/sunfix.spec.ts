@@ -483,6 +483,8 @@ test('an empty signed-in workspace keeps safe modules accessible and gates only 
   await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toHaveCount(0);
+  await expect(page.getByText('Account workspace · Initial setup')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add your first installation' })).toHaveCount(0);
 
   const openNavigationRoute = async (label: string) => {
