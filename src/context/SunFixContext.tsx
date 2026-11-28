@@ -1184,8 +1184,10 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const startDiagnosisForComponent = useCallback(
     (assetId: string, twinId: DigitalTwinComponentId) => {
       const targetAsset = assets.find((a) => a.id === assetId) || assets[0];
+      if (!targetAsset) return;
       const targetComp =
         targetAsset.components.find((c) => c.twinId === twinId) || targetAsset.components[0];
+      const isDemoAsset = targetAsset.isDemo;
       setSelectedAssetId(targetAsset.id);
       setSelectedTwinComponentId(twinId);
       setWizardDraft({
@@ -1194,19 +1196,24 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         twinComponentId: twinId,
         componentType: targetComp?.type || 'inverter',
         componentName: targetComp?.name || twinId,
-        symptoms:
-          twinId === 'inverter'
+        // Real customer installations must start with blank observations. Only
+        // explicitly marked demo assets may receive the illustrative fault preset.
+        symptoms: isDemoAsset
+          ? twinId === 'inverter'
             ? ['No power production', 'Inverter fault warning']
             : twinId === 'battery'
               ? ['Battery not charging']
-              : ['Reduced output'],
-        symptomNotes: targetComp?.notes || '',
-        faultCode:
-          twinId === 'inverter' ? 'G04-UV' : twinId === 'battery' ? 'BMS-12' : '',
-        readings:
-          activeFaultScenario.componentId === twinId && activeFaultScenario.sampleReadings.length
+              : ['Reduced output']
+          : [],
+        symptomNotes: isDemoAsset ? targetComp?.notes || '' : '',
+        faultCode: isDemoAsset
+          ? twinId === 'inverter' ? 'G04-UV' : twinId === 'battery' ? 'BMS-12' : ''
+          : '',
+        readings: isDemoAsset
+          ? activeFaultScenario.componentId === twinId && activeFaultScenario.sampleReadings.length
             ? activeFaultScenario.sampleReadings
-            : [{ label: 'Observed Output', value: '0.0', unit: 'kW' }],
+            : [{ label: 'Observed Output', value: '0.0', unit: 'kW' }]
+          : [],
         safetyFlags: [],
       });
       setRoute('diagnostics');
@@ -1495,6 +1502,25 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatedAt: now,
       };
       setAssets((prev) => (existing ? prev.map((a) => (a.id === id ? saved : a)) : [saved, ...prev]));
+      if (!existing && assets.length === 0) {
+        const firstComponent = saved.components.find((component) => component.twinId === 'inverter')
+          || saved.components[0];
+        setSelectedAssetId(saved.id);
+        setSelectedTwinComponentId(firstComponent?.twinId || 'inverter');
+        setWizardDraft({
+          assetId: saved.id,
+          componentId: firstComponent?.id || 'comp-inverter',
+          twinComponentId: firstComponent?.twinId || 'inverter',
+          componentType: firstComponent?.type || 'inverter',
+          componentName: firstComponent?.name || 'Primary Component',
+          symptoms: [],
+          symptomNotes: '',
+          faultCode: '',
+          readings: [],
+          safetyFlags: [],
+        });
+        setActiveFaultScenario(DEMO_FAULT_SCENARIOS[0]);
+      }
       enqueueSyncItem('asset', saved.id, saved.name, saved);
       return saved;
     },
