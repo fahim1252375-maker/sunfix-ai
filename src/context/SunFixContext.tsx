@@ -76,6 +76,7 @@ import type {
   WorkOrderStatus,
 } from '../types/sunfix';
 import { computeCasePriority, evaluateSafetyGate } from '../utils/diagnosticsLogic';
+import { validateWorkspaceAssets } from '../services/workspaceValidation';
 import { buildCanonicalReportPayload, computeCanonicalSha256 } from '../utils/reportCrypto';
 
 export interface WizardDraft {
@@ -572,9 +573,8 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         // Malformed legacy records are not discarded or written back. Filter only
         // records that cannot be rendered safely, and preserve the original DB bytes.
-        const validAssets = records.assets.filter((asset) =>
-          Boolean(asset && typeof asset.id === 'string' && typeof asset.name === 'string' && Array.isArray(asset.components)),
-        );
+        const assetValidation = validateWorkspaceAssets(records.assets);
+        const validAssets = assetValidation.assets;
         const validCases = records.cases.filter((item) => Boolean(item && typeof item.id === 'string'));
         const validWorkOrders = records.workOrders.filter((item) => Boolean(item && typeof item.id === 'string'));
         const validEvidence = records.evidence.filter((item) => Boolean(item && typeof item.id === 'string'));
@@ -585,7 +585,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         );
 
         const invalidRecordCount =
-          records.assets.length - validAssets.length +
+          assetValidation.issues.length +
           records.cases.length - validCases.length +
           records.workOrders.length - validWorkOrders.length +
           records.evidence.length - validEvidence.length +
