@@ -433,14 +433,16 @@ test('a new account can register a real site and enter its first operational wor
   await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('button', { name: 'Add your first solar installation' }).click();
+  await page.getByRole('button', { name: 'Add your first installation' }).click();
   await expect(page.getByRole('heading', { name: 'Solar installation assets' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Add your first installation' }).click();
   await expect(page.getByRole('heading', { name: 'Add Solar Installation' })).toBeVisible();
   await page.getByLabel('Installation Name').fill('First User Site');
   await page.getByLabel('Site Location Label').fill('Sylhet, Bangladesh');
+  await page.getByLabel('Capacity (kW)').fill('25');
   await page.getByLabel('Inverter Model').fill('User Registered Inverter');
+  await page.getByLabel('PV Panel Count').fill('60');
   await page.getByRole('button', { name: 'Save Asset' }).click();
 
   await expect(page.getByRole('heading', { name: 'First User Site' })).toBeVisible();
