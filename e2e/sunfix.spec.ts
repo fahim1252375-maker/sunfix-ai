@@ -87,7 +87,7 @@ test('homepage still opens when browser IndexedDB is unavailable', async ({ page
   }
 });
 
-test('a fresh verified account with no installations opens first-site setup instead of crashing', async ({ page }) => {
+test('a fresh verified account with no installations opens the complete workspace overview', async ({ page }) => {
   await page.goto('/');
 
   await page.evaluate(async () => {
@@ -101,13 +101,15 @@ test('a fresh verified account with no installations opens first-site setup inst
     timeout: 15_000,
   });
   await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Explore your modules' })).toBeVisible();
 
-  // Exercise the same dashboard entry that the account dialog uses after sign-in.
+  // A direct workspace entry for an already-authenticated, empty account must
+  // resolve to the same full workspace overview, not a reduced landing page.
   await page.goto('/?autostart=1');
-  await expect(page.getByRole('heading', { name: 'Welcome to SunFix.' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByRole('button', { name: 'Add your first solar installation' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Application Recovery' })).toHaveCount(0);
 });
 
@@ -462,4 +464,50 @@ test('a new account can register a real site and enter its first operational wor
   await reportsLink.click();
   await expect(page.getByRole('heading', { name: 'Create your first diagnostic record first' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Generate FieldProof Report' })).toBeDisabled();
+});
+
+
+test('an empty signed-in workspace keeps safe modules accessible and gates only site-bound tools', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const emulatorTestModulePath = '/src/testing/firebaseEmulator.ts';
+    const { createVerifiedEmulatorUser } =
+      await import(/* @vite-ignore */ emulatorTestModulePath);
+    await createVerifiedEmulatorUser();
+  });
+
+  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  const openNavigationRoute = async (label: string) => {
+    const navItem = page.getByRole('button', { name: label, exact: true });
+    if (!(await navItem.isVisible().catch(() => false))) {
+      await page.getByRole('button', { name: 'Open navigation menu' }).click();
+    }
+    await navItem.click();
+  };
+
+  await openNavigationRoute('Knowledge Library');
+  await expect(page.getByRole('heading', { name: /Verified solar knowledge library/ })).toBeVisible();
+
+  await openNavigationRoute('Energy Impact');
+  await expect(page.getByRole('heading', { name: /Energy Loss Impact Calculator/ })).toBeVisible();
+
+  await openNavigationRoute('Reports');
+  await expect(page.getByRole('heading', { name: /Verifiable FieldProof Reports/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your first diagnostic record first' })).toBeVisible();
+
+  await openNavigationRoute('AI Diagnostics');
+  await expect(page.getByRole('heading', { name: 'Register an installation to start diagnostics' })).toBeVisible();
+
+  await openNavigationRoute('Digital Twin');
+  await expect(page.getByRole('heading', { name: 'Register an installation to open the Digital Twin' })).toBeVisible();
+
+  await openNavigationRoute('FieldProof');
+  await expect(page.getByRole('heading', { name: 'Register an installation to capture FieldProof evidence' })).toBeVisible();
+
+  await openNavigationRoute('Assets');
+  await expect(page.getByRole('heading', { name: 'Solar installation assets' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
 });
