@@ -97,19 +97,21 @@ test('a fresh verified account with no installations opens the complete workspac
     await createVerifiedEmulatorUser();
   });
 
-  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Explore your modules' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Quick access' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible();
+  await expect(page.getByText('ACCOUNT WORKSPACE · INITIAL SETUP')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toHaveCount(0);
 
   // A direct workspace entry for an already-authenticated, empty account must
-  // resolve to the same full workspace overview, not a reduced landing page.
+  // open the live command center, never an onboarding interstitial.
   await page.goto('/?autostart=1');
-  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByRole('button', { name: 'Add your first installation' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Application Recovery' })).toHaveCount(0);
 });
 
@@ -432,7 +434,7 @@ test('a new account can register a real site and enter its first operational wor
     await createVerifiedEmulatorUser();
   });
 
-  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
   await page.getByRole('button', { name: 'Add your first installation' }).click();
@@ -476,9 +478,10 @@ test('an empty signed-in workspace keeps safe modules accessible and gates only 
     await createVerifiedEmulatorUser();
   });
 
-  await expect(page.getByRole('heading', { name: 'Your workspace starts here.' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
+  await expect(page.getByRole('button', { name: 'Add your first installation' })).toHaveCount(0);
 
   const openNavigationRoute = async (label: string) => {
     const navItem = page.getByRole('button', { name: label, exact: true });
