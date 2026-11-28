@@ -11,7 +11,7 @@ SunFix Field is a React + TypeScript progressive web application for solar asset
 - **Vercel:** https://sunfix-ai.vercel.app/
 - **Render:** https://sunfix-ai-preview.onrender.com/
 
-Open either deployment to explore the workspace. The current deployment still needs its Firebase Web App configuration before Google sign-in, cross-device Firestore sync, Firebase AI Logic cloud inference, and production App Check can become available. Preloaded site records and telemetry are sample content; do not treat sample diagnostics as electrical safety advice.
+The Vercel production deployment has Firebase Web App configuration and Google sign-in enabled. Cross-device Firestore sync and Firebase AI Logic cloud inference remain gated pending production App Check configuration and verification; do not assume a cloud write or model request succeeded until the app reports it. The Render URL is a preview deployment and may have different service configuration. Preloaded site records and telemetry are sample content; do not treat sample diagnostics as electrical safety advice.
 
 ## Features
 
