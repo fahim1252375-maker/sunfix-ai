@@ -437,7 +437,11 @@ test('a new account can register a real site and enter its first operational wor
   await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByRole('button', { name: 'Add your first installation' }).click();
+  const siteRegistryLink = page.getByRole('button', { name: 'Assets', exact: true });
+  if (!(await siteRegistryLink.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+  }
+  await siteRegistryLink.click();
   await expect(page.getByRole('heading', { name: 'Solar installation assets' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Add your first installation' }).click();
