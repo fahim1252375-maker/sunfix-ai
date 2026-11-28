@@ -835,10 +835,20 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
+    let authStartupTimer = window.setTimeout(() => {
+      // Some privacy modes/browser storage states can delay the first Auth callback.
+      // Open the local workspace rather than leaving the entire website on a spinner.
+      setAuthError('Account status is taking longer than expected. The local workspace is available; retry sign-in when account services respond.');
+      setUser(auth.currentUser);
+      setAuthReady(true);
+    }, 10_000);
+
     try {
       const unsub = onAuthStateChanged(
         auth,
         async (nextUser) => {
+          window.clearTimeout(authStartupTimer);
+          setAuthError(null);
           setUser(nextUser);
           setAuthReady(true);
           if (nextUser && nextUser.emailVerified) {
@@ -857,14 +867,19 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           }
         },
         () => {
+          window.clearTimeout(authStartupTimer);
           // Auth listener errors must not leave the entire app behind its startup gate.
           setAuthError('Account status could not be refreshed. The local workspace can still open; sign-in may need to be retried.');
           setUser(auth.currentUser);
           setAuthReady(true);
         },
       );
-      return () => unsub();
+      return () => {
+        window.clearTimeout(authStartupTimer);
+        unsub();
+      };
     } catch {
+      window.clearTimeout(authStartupTimer);
       setAuthError('Account service could not initialize. The local workspace can still open.');
       setUser(auth.currentUser);
       setAuthReady(true);
