@@ -144,7 +144,7 @@ export const DashboardView: React.FC = () => {
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Operational metrics">
         {[
           {
-            label: 'Registered Demo Assets',
+            label: 'Registered Installations',
             value: String(assets.length),
             valueColor: TOKENS.bone,
             sub: `${assets.filter((a) => a.status === 'nominal').length} nominal · ${assets.filter((a) => a.status !== 'nominal').length} attention`,
@@ -330,7 +330,7 @@ export const DashboardView: React.FC = () => {
 
             {prioritizedCases.length === 0 ? (
               <p className="text-xs py-4" style={{ color: TOKENS.mint }}>
-                All demonstration diagnostic cases are currently resolved.
+                No open diagnostic cases yet. Start an inspection to create your first case.
               </p>
             ) : (
               <div className="space-y-2.5">
