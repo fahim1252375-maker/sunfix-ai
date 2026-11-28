@@ -271,10 +271,9 @@ export const DashboardView: React.FC = () => {
                 style={{ borderColor: TOKENS.hairline }}
               >
                 <span style={{ color: TOKENS.sage }}>Last Inference Source</span>
-                <AIRuntimeIndicator
-                  source={lastInferenceRecord?.inferenceSource || 'demo_rules'}
-                  compact
-                />
+                {lastInferenceRecord
+                  ? <AIRuntimeIndicator source={lastInferenceRecord.inferenceSource} compact />
+                  : <span className="font-mono-tech" style={{ color: TOKENS.sage }}>Not run yet</span>}
               </div>
               <div
                 className="flex items-center justify-between py-1.5 border-b"
