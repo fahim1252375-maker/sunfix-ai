@@ -95,6 +95,24 @@ export interface WizardDraft {
 
 export type GlobalSyncStatus = 'online' | 'offline' | 'sync_pending' | 'syncing' | 'sync_failed' | 'synced' | 'local_only';
 
+type StartupResult<T> = { ok: true; value: T } | { ok: false };
+
+function settleStartupTask<T>(task: Promise<T>, timeoutMs: number): Promise<StartupResult<T>> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => resolve({ ok: false }), timeoutMs);
+    task.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve({ ok: true, value });
+      },
+      () => {
+        window.clearTimeout(timer);
+        resolve({ ok: false });
+      },
+    );
+  });
+}
+
 interface SunFixContextValue {
   route: ScreenRoute;
   activeLifecycleSlug: LifecycleSlug;
@@ -348,6 +366,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [syncQueue, setSyncQueue] = useState<SyncQueueItem[]>([]);
   const inFlightEntityKeysRef = useRef(new Set<string>());
   const acknowledgedRevisionsRef = useRef(new Map<string, number>());
+  // When IndexedDB cannot be read, keep the existing stored bytes untouched and
+  // let the UI run in read-only in-memory mode instead of saving empty defaults.
+  const localPersistenceAvailableRef = useRef(true);
   // A ref closes the same-tick race where two effects can start the same
   // Firestore transaction before React commits isSyncingNow=true.
   const isSyncingRef = useRef(false);
@@ -424,13 +445,15 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [refreshRuntimeCapabilities]);
 
   // Hydrate a distinct local workspace after Firebase Auth has resolved.
-  // Never reuse the prior account's records while a different account is loading.
+  // Every startup branch must release the render gate, including blocked storage,
+  // browser API failures, and a slow device capability probe.
   useEffect(() => {
     if (!authReady) return;
     let active = true;
     const scopeId = storageScopeId;
     inFlightEntityKeysRef.current.clear();
     acknowledgedRevisionsRef.current.clear();
+    localPersistenceAvailableRef.current = true;
     setHydratedScopeId(null);
     setAssets(DEMO_ASSETS);
     setCases(DEMO_CASES);
@@ -459,81 +482,205 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsSyncingNow(false);
 
     (async () => {
-      let saved: Awaited<ReturnType<typeof loadWorkspaceFromIDB>>;
-      let queue: SyncQueueItem[];
-      try {
-        [saved, queue] = await Promise.all([
+      let saved: Awaited<ReturnType<typeof loadWorkspaceFromIDB>> = null;
+      let queue: SyncQueueItem[] = [];
+      let storageReadOk = true;
+
+      const storageResult = await settleStartupTask(
+        Promise.all([
           loadWorkspaceFromIDB(scopeId),
           loadSyncQueueFromIDB(scopeId),
-        ]);
+        ]),
+        8_000,
+      );
+
+      if (!active) return;
+
+      if (storageResult.ok) {
+        [saved, queue] = storageResult.value;
         setLocalStorageError(null);
-      } catch {
-        if (!active) return;
-        setLocalStorageError('Local workspace storage could not be read. Changes are not safely persisted in this browser.');
-        return;
+      } else {
+        storageReadOk = false;
+        localPersistenceAvailableRef.current = false;
+        setLocalStorageError(
+          'Browser storage is unavailable or taking too long. SunFix opened a temporary in-memory workspace; existing saved records were not cleared or overwritten.',
+        );
       }
-      queue = queue.map((item) => item.status === 'persisting' ? { ...item, status: 'pending' } : item);
-      for (const item of queue) {
-        if (item.status === 'pending') {
-          void saveSyncQueueItemToIDB(item, scopeId).catch(() => {
-            if (active) setLocalStorageError('A recovered pending change could not be saved. Keep this tab open and resolve the storage issue.');
-          });
+
+      if (storageReadOk) {
+        queue = queue.map((item) => item.status === 'persisting' ? { ...item, status: 'pending' } : item);
+        for (const item of queue) {
+          if (item.status === 'pending') {
+            void saveSyncQueueItemToIDB(item, scopeId).catch(() => {
+              if (active) {
+                localPersistenceAvailableRef.current = false;
+                setLocalStorageError('A pending change could not be restored to browser storage. Your existing saved workspace was not cleared.');
+              }
+            });
+          }
         }
       }
-      const [avail, fsStatus, caps] = await Promise.all([
-        checkInitialDeviceAvailability(),
-        testFirestoreConnection(),
-        inspectHybridRuntimeCapabilities(effectiveOnlineRef.current),
+
+      const fallbackAvailability = {
+        availability: 'unsupported' as DeviceModelAvailability,
+        detail: 'Device capability checks timed out. The workspace is available; AI features can be checked again from Settings.',
+      };
+      const fallbackFirestoreStatus = {
+        ok: false,
+        detail: 'Cloud connectivity could not be checked during startup. Browser-local workspace remains available.',
+      };
+      const fallbackCapabilities: HybridRuntimeCapabilities = {
+        browserLabel: 'Browser capability check unavailable',
+        chromeVersion: browserSupport.chromeVersion,
+        chromeDesktopEligible: false,
+        webGpuAvailable: false,
+        webGpuDetail: 'WebGPU capability check unavailable',
+        storageQuotaMb: null,
+        storageUsageMb: null,
+        appCheckState: appCheckStatus.state,
+        online: effectiveOnlineRef.current,
+        sdkLanguageModelStatus: 'Capability check unavailable',
+        eligibilitySummary: 'Core workspace loaded without waiting for optional device capabilities.',
+      };
+
+      const [availabilityResult, firestoreResult, capabilitiesResult] = await Promise.all([
+        settleStartupTask(checkInitialDeviceAvailability(), 5_000),
+        settleStartupTask(testFirestoreConnection(), 8_000),
+        settleStartupTask(inspectHybridRuntimeCapabilities(effectiveOnlineRef.current), 5_000),
       ]);
       if (!active) return;
-      const localRecords: CloudWorkspaceRecords = saved ? {
-        assets: saved.assets || [], cases: saved.cases || [], workOrders: saved.workOrders || [],
-        evidence: saved.evidence || [], reports: saved.reports || [], knowledgeDocs: saved.knowledgeDocs || [],
-        copilotThreads: saved.copilotThreads || [],
-      } : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
-      const records = user
-        ? localRecords
-        : saved ? localRecords : {
-          assets: DEMO_ASSETS, cases: DEMO_CASES, workOrders: DEMO_WORK_ORDERS,
-          evidence: DEMO_EVIDENCE, reports: DEMO_REPORTS, knowledgeDocs: DEMO_KNOWLEDGE_LIBRARY,
-          copilotThreads: [makeInitialCopilotThread()],
-        };
 
-      if (user) {
-        setCloudCounts(null);
-        setCloudHydrationWarning(!user.emailVerified
-          ? 'Email verification is required before cloud restore or sync.'
-          : effectiveOnlineRef.current
-            ? 'Cloud restore is loading for this account.'
-            : 'Offline: showing this account’s local snapshot. Cloud records will refresh after reconnect.');
-      } else {
-        setCloudHydrationWarning(null);
+      const avail = availabilityResult.ok ? availabilityResult.value : fallbackAvailability;
+      const fsStatus = firestoreResult.ok ? firestoreResult.value : fallbackFirestoreStatus;
+      const caps = capabilitiesResult.ok ? capabilitiesResult.value : fallbackCapabilities;
+
+      try {
+        const localRecords: CloudWorkspaceRecords = saved ? {
+          assets: Array.isArray(saved.assets) ? saved.assets : [],
+          cases: Array.isArray(saved.cases) ? saved.cases : [],
+          workOrders: Array.isArray(saved.workOrders) ? saved.workOrders : [],
+          evidence: Array.isArray(saved.evidence) ? saved.evidence : [],
+          reports: Array.isArray(saved.reports) ? saved.reports : [],
+          knowledgeDocs: Array.isArray(saved.knowledgeDocs) ? saved.knowledgeDocs : [],
+          copilotThreads: Array.isArray(saved.copilotThreads) ? saved.copilotThreads : [],
+        } : { assets: [], cases: [], workOrders: [], evidence: [], reports: [], knowledgeDocs: [], copilotThreads: [] };
+
+        const records = user
+          ? localRecords
+          : saved ? localRecords : {
+            assets: DEMO_ASSETS, cases: DEMO_CASES, workOrders: DEMO_WORK_ORDERS,
+            evidence: DEMO_EVIDENCE, reports: DEMO_REPORTS, knowledgeDocs: DEMO_KNOWLEDGE_LIBRARY,
+            copilotThreads: [makeInitialCopilotThread()],
+          };
+
+        // Malformed legacy records are not discarded or written back. Filter only
+        // records that cannot be rendered safely, and preserve the original DB bytes.
+        const validAssets = records.assets.filter((asset) =>
+          Boolean(asset && typeof asset.id === 'string' && typeof asset.name === 'string' && Array.isArray(asset.components)),
+        );
+        const validCases = records.cases.filter((item) => Boolean(item && typeof item.id === 'string'));
+        const validWorkOrders = records.workOrders.filter((item) => Boolean(item && typeof item.id === 'string'));
+        const validEvidence = records.evidence.filter((item) => Boolean(item && typeof item.id === 'string'));
+        const validReports = records.reports.filter((item) => Boolean(item && typeof item.id === 'string'));
+        const validKnowledgeDocs = records.knowledgeDocs.filter((item) => Boolean(item && typeof item.id === 'string'));
+        const validCopilotThreads = records.copilotThreads.filter((item) =>
+          Boolean(item && typeof item.id === 'string' && typeof item.title === 'string' && Array.isArray(item.messages)),
+        );
+
+        const invalidRecordCount =
+          records.assets.length - validAssets.length +
+          records.cases.length - validCases.length +
+          records.workOrders.length - validWorkOrders.length +
+          records.evidence.length - validEvidence.length +
+          records.reports.length - validReports.length +
+          records.knowledgeDocs.length - validKnowledgeDocs.length +
+          records.copilotThreads.length - validCopilotThreads.length;
+
+        if (invalidRecordCount > 0) {
+          localPersistenceAvailableRef.current = false;
+          setLocalStorageError(
+            'Some older workspace records need repair. SunFix opened the readable records in safe mode and preserved the original saved data.',
+          );
+        }
+
+        if (user) {
+          setCloudCounts(null);
+          setCloudHydrationWarning(!user.emailVerified
+            ? 'Email verification is required before cloud restore or sync.'
+            : effectiveOnlineRef.current
+              ? 'Cloud restore is loading for this account.'
+              : 'Offline: showing this account’s local snapshot. Cloud records will refresh after reconnect.');
+        } else {
+          setCloudHydrationWarning(null);
+        }
+
+        setAssets(validAssets);
+        setCases(validCases);
+        setWorkOrders(validWorkOrders);
+        setEvidence(validEvidence);
+        setReports(validReports);
+        setKnowledgeDocs(validKnowledgeDocs);
+
+        if (saved) {
+          if (Array.isArray(saved.inferenceHistory)) setInferenceHistory(saved.inferenceHistory);
+          if (Array.isArray(saved.comparisons)) setComparisons(saved.comparisons);
+          if (saved.language) setLanguage(saved.language);
+          if (saved.qualityTier) setQualityTier(saved.qualityTier);
+        }
+
+        if (validCopilotThreads.length) {
+          setCopilotThreads(validCopilotThreads);
+          setActiveCopilotThreadId(validCopilotThreads[0].id);
+        } else if (user) {
+          setCopilotThreads([]);
+        }
+
+        setSyncQueue(queue);
+        setDeviceAvailability(avail.availability);
+        setDeviceStatusDetail(avail.detail);
+        setFirestoreStatus(fsStatus);
+        setRuntimeCapabilities(caps);
+      } catch {
+        // Never leave the entire application behind the loading gate because a
+        // malformed/older browser workspace failed to hydrate.
+        localPersistenceAvailableRef.current = false;
+        setLocalStorageError(
+          'An older browser workspace could not be fully read. SunFix opened a safe temporary workspace; the stored records remain untouched.',
+        );
+        setAssets(user ? [] : DEMO_ASSETS);
+        setCases(user ? [] : DEMO_CASES);
+        setWorkOrders(user ? [] : DEMO_WORK_ORDERS);
+        setEvidence(user ? [] : DEMO_EVIDENCE);
+        setReports(user ? [] : DEMO_REPORTS);
+        setKnowledgeDocs(user ? [] : DEMO_KNOWLEDGE_LIBRARY);
+        setCopilotThreads(user ? [] : [makeInitialCopilotThread()]);
+        setSyncQueue([]);
+        setDeviceAvailability(avail.availability);
+        setDeviceStatusDetail(avail.detail);
+        setFirestoreStatus(fsStatus);
+        setRuntimeCapabilities(caps);
+        setCloudHydrationWarning(user
+          ? 'The saved account workspace needs local repair. Your original browser data has been preserved.'
+          : null);
+      } finally {
+        if (active) setHydratedScopeId(scopeId);
       }
-      if (records.assets) setAssets(records.assets);
-      if (records.cases) setCases(records.cases);
-      if (records.workOrders) setWorkOrders(records.workOrders);
-      if (records.evidence) setEvidence(records.evidence);
-      if (records.reports) setReports(records.reports);
-      if (records.knowledgeDocs) setKnowledgeDocs(records.knowledgeDocs);
-      if (saved) {
-        if (saved.inferenceHistory) setInferenceHistory(saved.inferenceHistory);
-        if (saved.comparisons) setComparisons(saved.comparisons);
-        if (saved.language) setLanguage(saved.language);
-        if (saved.qualityTier) setQualityTier(saved.qualityTier);
-      }
-      if (records.copilotThreads.length) {
-        setCopilotThreads(records.copilotThreads);
-        setActiveCopilotThreadId(records.copilotThreads[0].id);
-      } else if (user) {
-        setCopilotThreads([]);
-      }
-      setSyncQueue(queue);
-      setDeviceAvailability(avail.availability);
-      setDeviceStatusDetail(avail.detail);
-      setFirestoreStatus(fsStatus);
-      setRuntimeCapabilities(caps);
+    })().catch(() => {
+      if (!active) return;
+      localPersistenceAvailableRef.current = false;
+      setLocalStorageError(
+        'SunFix could not fully inspect browser storage during startup. A safe temporary workspace is available; saved data has not been cleared.',
+      );
+      setAssets(user ? [] : DEMO_ASSETS);
+      setCases(user ? [] : DEMO_CASES);
+      setWorkOrders(user ? [] : DEMO_WORK_ORDERS);
+      setEvidence(user ? [] : DEMO_EVIDENCE);
+      setReports(user ? [] : DEMO_REPORTS);
+      setKnowledgeDocs(user ? [] : DEMO_KNOWLEDGE_LIBRARY);
+      setCopilotThreads(user ? [] : [makeInitialCopilotThread()]);
+      setSyncQueue([]);
       setHydratedScopeId(scopeId);
-    })();
+    });
 
     return () => {
       active = false;
@@ -545,6 +692,11 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // hydration or resetting an in-progress diagnostic/repair workflow.
   useEffect(() => {
     if (!authReady || hydratedScopeId !== storageScopeId || !user?.emailVerified || !effectiveOnline) {
+      return;
+    }
+
+    if (!localPersistenceAvailableRef.current) {
+      setCloudHydrationWarning('Cloud restore is paused because this browser could not safely access its local workspace store. Existing local data remains untouched.');
       return;
     }
 
@@ -638,7 +790,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Persist only after the matching account workspace has finished hydration.
   useEffect(() => {
-    if (!authReady || hydratedScopeId !== storageScopeId) return;
+    if (!authReady || hydratedScopeId !== storageScopeId || !localPersistenceAvailableRef.current) return;
     void saveWorkspaceToIDB({
       assets,
       cases,
@@ -683,25 +835,55 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const unsub = onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
+    let authStartupTimer = window.setTimeout(() => {
+      // Some privacy modes/browser storage states can delay the first Auth callback.
+      // Open the local workspace rather than leaving the entire website on a spinner.
+      setAuthError('Account status is taking longer than expected. The local workspace is available; retry sign-in when account services respond.');
+      setUser(auth.currentUser);
       setAuthReady(true);
-      if (nextUser && nextUser.emailVerified) {
-        try {
-          await upsertUserProfileInFirestore({
-            uid: nextUser.uid,
-            displayName: nextUser.displayName || 'Solar Technician',
-            email: nextUser.email || '',
-            role: 'technician',
-          });
-        } catch {
-          // Non-blocking
-        }
-      } else {
-        setCloudCounts(null);
-      }
-    });
-    return () => unsub();
+    }, 10_000);
+
+    try {
+      const unsub = onAuthStateChanged(
+        auth,
+        async (nextUser) => {
+          window.clearTimeout(authStartupTimer);
+          setAuthError(null);
+          setUser(nextUser);
+          setAuthReady(true);
+          if (nextUser && nextUser.emailVerified) {
+            try {
+              await upsertUserProfileInFirestore({
+                uid: nextUser.uid,
+                displayName: nextUser.displayName || 'Solar Technician',
+                email: nextUser.email || '',
+                role: 'technician',
+              });
+            } catch {
+              // Profile sync is non-blocking; local workspace startup must continue.
+            }
+          } else {
+            setCloudCounts(null);
+          }
+        },
+        () => {
+          window.clearTimeout(authStartupTimer);
+          // Auth listener errors must not leave the entire app behind its startup gate.
+          setAuthError('Account status could not be refreshed. The local workspace can still open; sign-in may need to be retried.');
+          setUser(auth.currentUser);
+          setAuthReady(true);
+        },
+      );
+      return () => {
+        window.clearTimeout(authStartupTimer);
+        unsub();
+      };
+    } catch {
+      window.clearTimeout(authStartupTimer);
+      setAuthError('Account service could not initialize. The local workspace can still open.');
+      setUser(auth.currentUser);
+      setAuthReady(true);
+    }
   }, []);
 
   const enqueueSyncItem = useCallback(
