@@ -270,6 +270,14 @@ export const FieldProofView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filteredEvidence.length === 0 && (
+              <section className="sm:col-span-2 rounded-xl border p-6 text-center space-y-2" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline }}>
+                <h2 className="font-display text-lg" style={{ color: TOKENS.bone }}>No FieldProof records yet</h2>
+                <p className="text-xs leading-relaxed" style={{ color: TOKENS.sage }}>
+                  Capture an original site photo, observed reading, or inspection note using the form. New records will appear here with their evidence origin and timestamp.
+                </p>
+              </section>
+            )}
             {filteredEvidence.map((ev) => {
               const originMeta = ORIGIN_LABELS[ev.originKind];
               return (
