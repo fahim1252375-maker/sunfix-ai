@@ -7,7 +7,7 @@ import { HybridAISection } from '../components/HybridAISection';
 import { LifecycleStageVisual } from '../components/LifecycleStageVisuals';
 import { SolarTwinSvg2D } from '../components/SolarTwinSvg2D';
 import { useSunFix } from '../context/SunFixContext';
-import { DEMO_FAULT_SCENARIOS, LIFECYCLE_STAGES } from '../data/demoData';
+import { DEMO_ASSETS, DEMO_FAULT_SCENARIOS, LIFECYCLE_STAGES } from '../data/demoData';
 import { TOKENS } from '../theme/tokens';
 import { getAppCheckStatus, isFirebaseConfigured } from '../services/firebase';
 import { SAFETY_HAZARD_CHECKS } from '../utils/diagnosticsLogic';
