@@ -2132,6 +2132,9 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const resetDemoWorkspace = useCallback(async () => {
+    // Demo reset is only for the anonymous preview workspace. Never replace an
+    // authenticated customer's site and service records with sample data.
+    if (user) return;
     await clearAllIDB(storageScopeId);
     setAssets(DEMO_ASSETS);
     setCases(DEMO_CASES);
@@ -2167,7 +2170,7 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       },
     ]);
     setActiveCopilotThreadId('thread-demo-mesa');
-  }, [storageScopeId]);
+  }, [storageScopeId, user]);
 
   const value: SunFixContextValue = {
     route,
