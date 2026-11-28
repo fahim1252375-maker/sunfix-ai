@@ -63,13 +63,11 @@ export const WelcomeView: React.FC = () => {
     {
       index: '03',
       title: 'Execute Repairs & Export FieldProof',
-      body: 'Convert verified findings into safety-gated work orders persisted offline in IndexedDB, log before/after FieldProof records, and print audit-rea>
-            Add your first installation
-          </button>
-        </section>
-      </div>
-    );
-  }
+      body: 'Convert verified findings into safety-gated work orders persisted offline in IndexedDB, log before/after FieldProof records, and print audit-ready Service Reports.',
+      route: 'reports' as const,
+      cta: 'Explore Service Reports',
+    },
+  ];
 
   return (
     <div
