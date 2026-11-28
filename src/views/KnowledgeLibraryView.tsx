@@ -174,6 +174,22 @@ export const KnowledgeLibraryView: React.FC = () => {
 
       {/* Knowledge Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {filtered.length === 0 && (
+          <section className="lg:col-span-2 rounded-xl border p-6 sm:p-8 space-y-3" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline }}>
+            <div className="font-mono-tech text-xs uppercase tracking-wider" style={{ color: TOKENS.brass }}>Reference library</div>
+            <h2 className="font-display text-xl" style={{ color: TOKENS.bone }}>
+              {knowledgeDocs.length === 0 ? 'No technical references added yet' : 'No references match this search'}
+            </h2>
+            <p className="max-w-2xl text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+              {knowledgeDocs.length === 0
+                ? 'Import a manufacturer manual or add a verified reference before using it to support a diagnosis. SunFix does not invent manuals or claim unverified sources.'
+                : 'Try another fault code, symptom, or category, or add a technical reference to your library.'}
+            </p>
+            <button type="button" onClick={() => setShowImportModal(true)} className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-semibold" style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>
+              Import Technical Reference
+            </button>
+          </section>
+        )}
         {filtered.map((doc) => (
           <article
             key={doc.id}
