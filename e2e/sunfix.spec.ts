@@ -437,11 +437,9 @@ test('a new account can register a real site and enter its first operational wor
   await expect(page.getByRole('heading', { name: 'Operations Command Center' })).toBeVisible({
     timeout: 15_000,
   });
-  const siteRegistryLink = page.getByRole('button', { name: 'Assets', exact: true });
-  if (!(await siteRegistryLink.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: 'Open navigation menu' }).click();
-  }
-  await siteRegistryLink.click();
+  // Use the visible Site Registry shortcut so this flow is stable on both
+  // desktop and mobile layouts without assuming a particular sidebar breakpoint.
+  await page.getByRole('button', { name: /Site Registry/ }).click();
   await expect(page.getByRole('heading', { name: 'Solar installation assets' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Add your first installation' }).click();
