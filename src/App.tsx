@@ -23,170 +23,117 @@ const ReportsView = lazy(() => import('./views/ReportsView').then((m) => ({ defa
 const SettingsView = lazy(() => import('./views/SettingsView').then((m) => ({ default: m.SettingsView })));
 const WelcomeView = lazy(() => import('./views/WelcomeView').then((m) => ({ default: m.WelcomeView })));
 
-const WORKSPACE_MODULES = [
-  {
-    route: 'assets',
-    title: 'Site Registry',
-    description: 'Register real solar sites, equipment, inverter models, and component records.',
-    status: 'Start here',
-  },
-  {
-    route: 'diagnostics',
-    title: 'AI Diagnostics',
-    description: 'Run an evidence-first, safety-gated inspection for a registered installation.',
-    status: 'Site required',
-  },
-  {
-    route: 'digital-twin',
-    title: 'Digital Twin',
-    description: 'Review the topology and condition of your own registered installation.',
-    status: 'Site required',
-  },
-  {
-    route: 'knowledge',
-    title: 'Knowledge Library',
-    description: 'Browse the reference library or import a manufacturer manual.',
-    status: 'Available now',
-  },
-  {
-    route: 'repairs',
-    title: 'Repair Operations',
-    description: 'Review work orders, task progress, and verification records.',
-    status: 'After diagnosis',
-  },
-  {
-    route: 'fieldproof',
-    title: 'FieldProof Evidence',
-    description: 'Capture installation-linked photos, readings, and technician notes.',
-    status: 'Site required',
-  },
-  {
-    route: 'calculator',
-    title: 'Energy Impact',
-    description: 'Explore transparent energy-impact estimates with labelled assumptions.',
-    status: 'Available now',
-  },
-  {
-    route: 'reports',
-    title: 'Service Reports',
-    description: 'Build and export provenance-aware reports from saved diagnostic cases.',
-    status: 'After diagnosis',
-  },
-] as const;
+const EmptyAccountDashboard: React.FC = () => {
+  const { user, assets, cases, workOrders, reports, navigate } = useSunFix();
 
-const WorkspaceSetupView: React.FC = () => {
-  const { user, navigate } = useSunFix();
-  const firstName = user?.displayName?.trim().split(/\s+/)[0];
+  const metrics = [
+    { label: 'Registered sites', value: assets.length, detail: 'Site registry' },
+    { label: 'Diagnostic records', value: cases.length, detail: 'Inspection history' },
+    { label: 'Open work orders', value: workOrders.filter((item) => item.status !== 'completed').length, detail: 'Repair operations' },
+    { label: 'Service reports', value: reports.length, detail: 'FieldProof records' },
+  ];
+
+  const shortcuts = [
+    {
+      route: 'assets',
+      title: 'Site Registry',
+      description: 'Manage solar installations, equipment, and component records.',
+      action: 'Open registry',
+    },
+    {
+      route: 'knowledge',
+      title: 'Knowledge Library',
+      description: 'Search references and import manufacturer technical documents.',
+      action: 'Browse references',
+    },
+    {
+      route: 'calculator',
+      title: 'Energy Impact',
+      description: 'Calculate transparent energy estimates using your own inputs.',
+      action: 'Open calculator',
+    },
+    {
+      route: 'reports',
+      title: 'Service Reports',
+      description: 'Review report history and create reports from completed inspections.',
+      action: 'View reports',
+    },
+  ] as const;
+
+  const firstName = user?.displayName?.trim().split(/\\s+/)[0];
 
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl space-y-7">
-        <section
-          className="grid grid-cols-1 gap-6 rounded-2xl border p-6 sm:p-8 lg:grid-cols-[minmax(0,1.5fr)_minmax(260px,0.8fr)]"
-          style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}
-        >
-          <div className="flex flex-col items-start justify-center gap-4">
+        <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-5" style={{ borderColor: TOKENS.hairline }}>
+          <div>
             <span className="font-mono-tech text-xs uppercase tracking-[0.18em]" style={{ color: TOKENS.brass }}>
-              Account workspace · Initial setup
+              Field Operations · Workspace Overview
             </span>
-            <h1 className="font-display text-3xl font-semibold sm:text-4xl" style={{ color: TOKENS.bone }}>
-              Your workspace starts here.
+            <h1 className="mt-2 font-display text-3xl font-semibold sm:text-4xl" style={{ color: TOKENS.bone }}>
+              Operations <em className="italic" style={{ color: TOKENS.brass }}>Command Center</em>
             </h1>
-            <p className="text-sm leading-relaxed sm:text-base" style={{ color: TOKENS.sage }}>
-              {firstName ? `Welcome back, ${firstName}. ` : 'Welcome to SunFix Field. '}
-              Your account is signed in and ready. Register an existing solar installation to activate its site-specific
-              equipment, diagnostics, service workflows, and reports.
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+              {firstName ? `Welcome back, ${firstName}. ` : ''}
+              Your workspace is ready. Operational records and site activity will appear here as they are added.
             </p>
-            <p className="max-w-2xl text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
-              This account has no registered installations yet. SunFix keeps customer workspaces separate and does not
-              insert sample sites or simulated customer records into your account.
-            </p>
-            <div className="flex flex-wrap gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => navigate('assets')}
-                className="min-h-12 rounded-xl px-5 py-3 text-sm font-semibold transition-opacity hover:opacity-90"
-                style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}
-              >
-                Add your first installation
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('knowledge')}
-                className="min-h-12 rounded-xl border px-5 py-3 text-sm font-semibold transition-colors"
-                style={{ backgroundColor: TOKENS.mossDeep, borderColor: TOKENS.hairlineStrong, color: TOKENS.bone }}
-              >
-                Browse knowledge library
-              </button>
-            </div>
           </div>
+          <span className="rounded-lg border px-3 py-2 text-xs font-mono-tech" style={{ color: TOKENS.mint, borderColor: TOKENS.hairlineStrong }}>
+            WORKSPACE ACTIVE
+          </span>
+        </header>
 
-          <aside className="flex flex-col justify-center gap-4 rounded-xl border p-5" style={{ backgroundColor: TOKENS.mossDeep, borderColor: TOKENS.hairline }}>
-            <div className="font-mono-tech text-xs uppercase tracking-wider" style={{ color: TOKENS.brass }}>
-              Workspace readiness
-            </div>
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium" style={{ color: TOKENS.bone }}>Registered installations</p>
-                <p className="mt-1 text-xs" style={{ color: TOKENS.sage }}>Your private site registry</p>
-              </div>
-              <span className="font-mono-tech text-2xl font-semibold tabular-nums" style={{ color: TOKENS.bone }}>0 / 1</span>
-            </div>
-            <div
-              className="h-2 overflow-hidden rounded-full"
-              role="progressbar"
-              aria-label="Installation setup progress"
-              aria-valuemin={0}
-              aria-valuemax={1}
-              aria-valuenow={0}
-              style={{ backgroundColor: TOKENS.hairlineStrong }}
-            >
-              <div className="h-full w-0 rounded-full" style={{ backgroundColor: TOKENS.brass }} />
-            </div>
-            <div className="border-t pt-4 text-xs leading-relaxed" style={{ borderColor: TOKENS.hairline, color: TOKENS.sage }}>
-              <strong className="font-semibold" style={{ color: TOKENS.bone }}>Next step:</strong> Add a site name, location,
-              installed capacity, and the equipment details currently available to you. Unknown serial numbers can remain
-              unrecorded until verified.
-            </div>
-          </aside>
+        <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Workspace metrics">
+          {metrics.map((metric) => (
+            <article key={metric.label} className="rounded-xl border p-4 sm:p-5" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline }}>
+              <p className="text-xs" style={{ color: TOKENS.sage }}>{metric.label}</p>
+              <p className="mt-2 font-mono-tech text-3xl font-semibold tabular-nums" style={{ color: TOKENS.bone }}>{metric.value}</p>
+              <p className="mt-1 text-[11px]" style={{ color: TOKENS.sage }}>{metric.detail}</p>
+            </article>
+          ))}
         </section>
 
         <section className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <span className="font-mono-tech text-xs uppercase tracking-[0.16em]" style={{ color: TOKENS.brass }}>
-                Operations workspace
-              </span>
-              <h2 className="mt-1 font-display text-2xl" style={{ color: TOKENS.bone }}>Explore your modules</h2>
-              <p className="mt-1 text-sm" style={{ color: TOKENS.sage }}>
-                Your navigation stays available. Site-dependent workflows will guide you when a real installation is needed.
-              </p>
-            </div>
-            <span className="rounded-lg border px-3 py-2 text-xs font-mono-tech" style={{ borderColor: TOKENS.hairlineStrong, color: TOKENS.sage }}>
-              0 registered sites
+          <div>
+            <span className="font-mono-tech text-xs uppercase tracking-[0.16em]" style={{ color: TOKENS.brass }}>
+              Workspace tools
             </span>
+            <h2 className="mt-1 font-display text-2xl" style={{ color: TOKENS.bone }}>Quick access</h2>
           </div>
-
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {WORKSPACE_MODULES.map((module) => (
+            {shortcuts.map((shortcut) => (
               <button
-                key={module.route}
+                key={shortcut.route}
                 type="button"
-                onClick={() => navigate(module.route)}
-                className="flex min-h-40 flex-col items-start gap-3 rounded-xl border p-4 text-left transition-colors hover:border-[#B99B63]"
+                onClick={() => navigate(shortcut.route)}
+                className="flex min-h-44 flex-col items-start justify-between gap-4 rounded-xl border p-5 text-left transition-colors hover:border-[#B99B63]"
                 style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline, color: TOKENS.bone }}
               >
-                <div className="flex w-full items-center justify-between gap-2">
-                  <span className="font-mono-tech text-[10px] uppercase tracking-wider" style={{ color: TOKENS.brass }}>
-                    {module.status}
-                  </span>
-                  <span aria-hidden="true" style={{ color: TOKENS.sage }}>↗</span>
-                </div>
-                <span className="font-display text-lg">{module.title}</span>
-                <span className="text-xs leading-relaxed" style={{ color: TOKENS.sage }}>{module.description}</span>
+                <span>
+                  <span className="block font-display text-lg">{shortcut.title}</span>
+                  <span className="mt-2 block text-xs leading-relaxed" style={{ color: TOKENS.sage }}>{shortcut.description}</span>
+                </span>
+                <span className="text-xs font-semibold" style={{ color: TOKENS.brass }}>{shortcut.action} ↗</span>
               </button>
             ))}
           </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <article className="rounded-xl border p-5" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline }}>
+            <span className="font-mono-tech text-xs uppercase tracking-wider" style={{ color: TOKENS.brass }}>Recent activity</span>
+            <h2 className="mt-2 font-display text-lg" style={{ color: TOKENS.bone }}>Workspace activity</h2>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+              No activity has been recorded yet. New site registrations, inspections, and service updates will be listed here.
+            </p>
+          </article>
+          <article className="rounded-xl border p-5" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairline }}>
+            <span className="font-mono-tech text-xs uppercase tracking-wider" style={{ color: TOKENS.brass }}>Operational availability</span>
+            <h2 className="mt-2 font-display text-lg" style={{ color: TOKENS.bone }}>All workspace modules</h2>
+            <p className="mt-2 text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+              Use the navigation to open Diagnostics, Digital Twin, Repair Operations, FieldProof, Reports, Settings, and the other tools. Modules that depend on a registered site will explain what information they need.
+            </p>
+          </article>
         </section>
       </div>
     </AppShell>
@@ -227,7 +174,7 @@ const SunFixRouter: React.FC = () => {
     switch (route) {
       case 'dashboard':
       case 'welcome':
-        return <WorkspaceSetupView />;
+        return <EmptyAccountDashboard />;
       case 'digital-twin':
         return <AppShell><AssetRequiredView title="Register an installation to open the Digital Twin"
           description="The Digital Twin is tied to a real site and its components. Add your installation first; then its registered equipment can be selected here." /></AppShell>;
