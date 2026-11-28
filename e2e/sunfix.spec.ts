@@ -451,7 +451,7 @@ test('a new account can register a real site and enter its first operational wor
     await page.getByRole('button', { name: 'Open navigation menu' }).click();
   }
   await commandCenter.click();
-  await expect(page.getByText('AI NOT RUN')).toBeVisible();
+  await expect(page.getByText('Not run yet')).toBeVisible();
   await page.getByRole('button', { name: 'New AI Diagnosis' }).click();
   await expect(page.getByText('First User Site').first()).toBeVisible();
 
