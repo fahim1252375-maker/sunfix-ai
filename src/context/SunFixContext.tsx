@@ -835,25 +835,40 @@ export const SunFixProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return;
     }
 
-    const unsub = onAuthStateChanged(auth, async (nextUser) => {
-      setUser(nextUser);
+    try {
+      const unsub = onAuthStateChanged(
+        auth,
+        async (nextUser) => {
+          setUser(nextUser);
+          setAuthReady(true);
+          if (nextUser && nextUser.emailVerified) {
+            try {
+              await upsertUserProfileInFirestore({
+                uid: nextUser.uid,
+                displayName: nextUser.displayName || 'Solar Technician',
+                email: nextUser.email || '',
+                role: 'technician',
+              });
+            } catch {
+              // Profile sync is non-blocking; local workspace startup must continue.
+            }
+          } else {
+            setCloudCounts(null);
+          }
+        },
+        () => {
+          // Auth listener errors must not leave the entire app behind its startup gate.
+          setAuthError('Account status could not be refreshed. The local workspace can still open; sign-in may need to be retried.');
+          setUser(auth.currentUser);
+          setAuthReady(true);
+        },
+      );
+      return () => unsub();
+    } catch {
+      setAuthError('Account service could not initialize. The local workspace can still open.');
+      setUser(auth.currentUser);
       setAuthReady(true);
-      if (nextUser && nextUser.emailVerified) {
-        try {
-          await upsertUserProfileInFirestore({
-            uid: nextUser.uid,
-            displayName: nextUser.displayName || 'Solar Technician',
-            email: nextUser.email || '',
-            role: 'technician',
-          });
-        } catch {
-          // Non-blocking
-        }
-      } else {
-        setCloudCounts(null);
-      }
-    });
-    return () => unsub();
+    }
   }, []);
 
   const enqueueSyncItem = useCallback(
