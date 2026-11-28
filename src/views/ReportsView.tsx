@@ -15,6 +15,7 @@ export const ReportsView: React.FC = () => {
     evidence,
     knowledgeDocs,
     generateServiceReport,
+    navigate,
   } = useSunFix();
 
   const [selectedCaseForNew, setSelectedCaseForNew] = useState(cases[0]?.id || '');
@@ -137,6 +138,19 @@ export const ReportsView: React.FC = () => {
         </div>
       </div>
 
+      {cases.length === 0 && (
+        <section className="rounded-xl border p-6 sm:p-8 space-y-3" style={{ backgroundColor: TOKENS.moss, borderColor: TOKENS.hairlineStrong }}>
+          <div className="font-mono-tech text-xs uppercase tracking-wider" style={{ color: TOKENS.brass }}>Report workflow · Waiting for a case</div>
+          <h2 className="font-display text-xl" style={{ color: TOKENS.bone }}>Create your first diagnostic record first</h2>
+          <p className="max-w-2xl text-sm leading-relaxed" style={{ color: TOKENS.sage }}>
+            Service reports are generated from a saved diagnostic case. Run an inspection for one of your installations; you can return here to create and export its FieldProof report.
+          </p>
+          <button type="button" onClick={() => navigate('diagnostics')} className="min-h-11 rounded-lg px-4 py-2.5 text-sm font-semibold" style={{ backgroundColor: TOKENS.brass, color: TOKENS.ink }}>
+            Start an AI diagnosis
+          </button>
+        </section>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Sidebar: Report History + Quick Generator */}
         <aside className="no-print lg:col-span-4 space-y-4">
@@ -194,6 +208,7 @@ export const ReportsView: React.FC = () => {
             </div>
             <button
               type="button"
+              disabled={cases.length === 0}
               onClick={() =>
                 generateServiceReport({
                   caseId: selectedCaseForNew,
