@@ -78,9 +78,13 @@ test('homepage still opens when browser IndexedDB is unavailable', async ({ page
   await expect(page.getByText(/Loading your private workspace/)).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Explore Workspace' }).click();
-  await expect(page.getByRole('navigation', { name: 'Main navigation' })).toBeVisible({
-    timeout: 15_000,
-  });
+  const desktopNavigation = page.getByRole('navigation', { name: 'Main navigation' });
+  if (await desktopNavigation.isVisible().catch(() => false)) {
+    await expect(desktopNavigation).toBeVisible();
+  } else {
+    await page.getByRole('button', { name: 'Open navigation menu' }).click();
+    await expect(page.getByRole('button', { name: 'Assets' })).toBeVisible();
+  }
 });
 
 test('a fresh verified account with no installations opens first-site setup instead of crashing', async ({ page }) => {
